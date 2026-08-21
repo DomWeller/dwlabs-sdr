@@ -2,14 +2,21 @@
 set -euo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 load_env
+require_remote_runtime
+require_env N8N_PROJECT_ID
 
 manual_public_guard
-log "Deploy remoto nao sera executado automaticamente nesta etapa."
-log "Fluxo previsto:"
-log "1. backup pre-release"
-log "2. npm run build"
-log "3. scripts/import-workflows.sh"
-log "4. scripts/migrate.sh"
-log "5. scripts/seed.sh"
-log "6. instalar plugin OpenClaw e criar agente comercial owner-only"
-log "7. scripts/healthcheck.sh"
+ensure_remote_layout
+
+log "Rodando build local antes do deploy remoto"
+npm ci
+npm run build
+npm run validate
+
+bash "${ROOT_DIR}/scripts/backup.sh"
+bash "${ROOT_DIR}/scripts/migrate.sh"
+bash "${ROOT_DIR}/scripts/seed.sh"
+bash "${ROOT_DIR}/scripts/import-workflows.sh"
+bash "${ROOT_DIR}/scripts/healthcheck.sh"
+
+log "Deploy preparado sem bind publico. Publique o canal apenas no gate final."

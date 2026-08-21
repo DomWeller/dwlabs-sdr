@@ -5,7 +5,7 @@ Plugin nativo para OpenClaw `2026.7.1` com ferramentas estritamente allowlisted 
 ## O que este plugin faz
 
 - expone apenas ferramentas aprovadas do SDR
-- chama endpoints internos do n8n por `Bearer + HMAC`
+- chama endpoints internos do n8n por `Authorization` validado pelo `httpHeaderAuth` nativo
 - impede URL arbitraria, shell, filesystem e HTTP generico
 - devolve respostas estruturadas e sem segredos
 

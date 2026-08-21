@@ -7,10 +7,10 @@ Implementacao local versionavel do SDR comercial da DWLabs sobre `OpenClaw 2026.
 - migrations SQL com rollback e seed inicial de catalogo
 - contratos JSON por ferramenta
 - gerador/export de workflows n8n pequenos, public tools, subworkflows e schedulers
-- plugin OpenClaw tipado com `Bearer + HMAC` e allowlist de endpoints
+- plugin OpenClaw tipado com `Authorization` via `httpHeaderAuth` nativo do n8n e allowlist de endpoints
 - prompt, workspace e config do agente `comercial`
 - scripts idempotentes de backup, deploy, rollback, migrate, seed, import/export, healthcheck e teste
-- mocks versionados de Google Calendar, audio e notificacao
+- dispatchers fail-safe para Calendar, audio, Sheets e notificacao quando a credencial estiver ausente
 - observabilidade redigida e 20 cenarios automatizados
 
 ## Fluxo recomendado
@@ -30,7 +30,7 @@ npm run scan:secrets
 - `workflows/`: exports importaveis para n8n
 - `plugins/dwlabs-sdr-tools/`: plugin OpenClaw nativo
 - `openclaw-agent/`: prompt, workspace e config isolada do agente comercial
-- `scripts/`: operacao local/assistida, sem tocar no servidor por padrao
+- `scripts/`: operacao idempotente para rodar dentro do host remoto com Docker
 - `docs/`: arquitetura, integracoes, seguranca, operacao e troubleshooting
 
 ## Limites e seguranca

@@ -249,7 +249,7 @@ Responsabilidade:
 Headers padrão:
 
 - `Authorization: Bearer <N8N_SDR_SHARED_TOKEN>`
-- `X-SDR-Signature: <hmac_sha256>`
+- `Authorization: Bearer <token_256_bit_via_httpHeaderAuth>`
 - `X-Idempotency-Key: <uuid-v7>`
 - `X-Correlation-Id: <uuid-v7>`
 - `X-Agent-Id: comercial`
@@ -614,7 +614,7 @@ Sequência:
 
 ### Controles obrigatórios
 
-- Bearer + HMAC entre plugin e n8n
+- `Webhook Header Auth` nativo entre plugin e n8n
 - validação de schema em ambas as pontas
 - allowlist de operações e endpoints
 - rate limit por canal/remetente
