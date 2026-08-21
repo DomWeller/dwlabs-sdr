@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { ToolDefinition } from "../contracts/tool-definitions.js";
 
 interface N8nNode {
@@ -24,6 +24,11 @@ interface N8nWorkflow {
 
 const envExpression = (envKey: string, fallback: string): string =>
   `={{ $env.${envKey} || "${fallback}" }}`;
+
+const stableUuid = (seed: string): string => {
+  const hex = createHash("sha1").update(seed).digest("hex").slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+};
 
 const buildConnections = (orderedNodeNames: string[]): N8nWorkflow["connections"] => {
   const connections: N8nWorkflow["connections"] = {};
@@ -56,7 +61,7 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
 
   const nodes: N8nNode[] = [
     {
-      id: randomUUID(),
+      id: "",
       name: webhookName,
       type: "n8n-nodes-base.webhook",
       typeVersion: 2,
@@ -75,7 +80,7 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
       }
     },
     {
-      id: randomUUID(),
+      id: "",
       name: guardName,
       type: "n8n-nodes-base.code",
       typeVersion: 2,
@@ -96,7 +101,7 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
       }
     },
     {
-      id: randomUUID(),
+      id: "",
       name: queryName,
       type: "n8n-nodes-base.postgres",
       typeVersion: 2.6,
@@ -114,7 +119,7 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
       }
     },
     {
-      id: randomUUID(),
+      id: "",
       name: responseName,
       type: "n8n-nodes-base.respondToWebhook",
       typeVersion: 1.4,
@@ -129,6 +134,11 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
     }
   ];
 
+  nodes[0].id = stableUuid(`${tool.workflowName}:webhook`);
+  nodes[1].id = stableUuid(`${tool.workflowName}:guard`);
+  nodes[2].id = stableUuid(`${tool.workflowName}:postgres`);
+  nodes[3].id = stableUuid(`${tool.workflowName}:response`);
+
   return {
     name: tool.workflowName,
     nodes,
@@ -139,14 +149,14 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
     pinData: {},
     tags: [{ name: "dwlabs-sdr" }, { name: "public-tool" }],
     active: false,
-    versionId: randomUUID()
+    versionId: stableUuid(`${tool.workflowName}:version`)
   };
 }
 
 export function buildSubworkflow(name: string): N8nWorkflow {
   const nodes: N8nNode[] = [
     {
-      id: randomUUID(),
+      id: "",
       name: "Execute Trigger",
       type: "n8n-nodes-base.executeWorkflowTrigger",
       typeVersion: 1.1,
@@ -154,7 +164,7 @@ export function buildSubworkflow(name: string): N8nWorkflow {
       parameters: {}
     },
     {
-      id: randomUUID(),
+      id: "",
       name: "Subworkflow Handler",
       type: "n8n-nodes-base.code",
       typeVersion: 2,
@@ -174,6 +184,9 @@ export function buildSubworkflow(name: string): N8nWorkflow {
     }
   ];
 
+  nodes[0].id = stableUuid(`${name}:trigger`);
+  nodes[1].id = stableUuid(`${name}:handler`);
+
   return {
     name,
     nodes,
@@ -184,14 +197,14 @@ export function buildSubworkflow(name: string): N8nWorkflow {
     pinData: {},
     tags: [{ name: "dwlabs-sdr" }, { name: "subworkflow" }],
     active: false,
-    versionId: randomUUID()
+    versionId: stableUuid(`${name}:version`)
   };
 }
 
 export function buildScheduler(name: string): N8nWorkflow {
   const nodes: N8nNode[] = [
     {
-      id: randomUUID(),
+      id: "",
       name: "Schedule Trigger",
       type: "n8n-nodes-base.scheduleTrigger",
       typeVersion: 1.2,
@@ -209,7 +222,7 @@ export function buildScheduler(name: string): N8nWorkflow {
       }
     },
     {
-      id: randomUUID(),
+      id: "",
       name: "Scheduler Logic",
       type: "n8n-nodes-base.code",
       typeVersion: 2,
@@ -229,6 +242,9 @@ export function buildScheduler(name: string): N8nWorkflow {
     }
   ];
 
+  nodes[0].id = stableUuid(`${name}:schedule`);
+  nodes[1].id = stableUuid(`${name}:logic`);
+
   return {
     name,
     nodes,
@@ -239,6 +255,6 @@ export function buildScheduler(name: string): N8nWorkflow {
     pinData: {},
     tags: [{ name: "dwlabs-sdr" }, { name: "scheduler" }],
     active: false,
-    versionId: randomUUID()
+    versionId: stableUuid(`${name}:version`)
   };
 }

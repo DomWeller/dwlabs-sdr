@@ -2,7 +2,7 @@
   "name": "sdr.sincronizar_sheets",
   "nodes": [
     {
-      "id": "e8837a71-bd6c-4bd3-8d06-307cee5de0c8",
+      "id": "1a5b15f1-dab8-437a-0af1-ad40aae84f73",
       "name": "Receive Request",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -27,7 +27,7 @@
       }
     },
     {
-      "id": "f54695d0-5847-454b-9656-df283ab82414",
+      "id": "d08663d5-8cc5-dafe-23ed-4765cf51fff3",
       "name": "Validate Headers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -41,7 +41,7 @@
       }
     },
     {
-      "id": "60244699-75f9-413d-86b6-c948ffdfb670",
+      "id": "62de8b25-dc8f-dc6d-f428-2ad33b5abd96",
       "name": "Run SQL Function",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -62,7 +62,7 @@
       }
     },
     {
-      "id": "69b2a93e-6bef-44e4-a045-9ab817c63d0a",
+      "id": "7ee54e1f-9ad8-179a-e850-aff1b7439765",
       "name": "Reply",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
@@ -127,5 +127,5 @@
     }
   ],
   "active": false,
-  "versionId": "c7ada3ce-f038-4dea-9d70-0d6451ca4521"
+  "versionId": "d9cc1b6a-c829-e5b7-e6d0-7ea006545438"
 }

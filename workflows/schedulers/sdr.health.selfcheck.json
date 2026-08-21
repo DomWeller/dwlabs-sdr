@@ -2,7 +2,7 @@
   "name": "sdr.health.selfcheck",
   "nodes": [
     {
-      "id": "9be5a7ec-bba1-4723-9751-bc1b44f2c363",
+      "id": "c7d77b23-0aa2-67db-d65c-d574451942e1",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "baa2350d-df60-4083-a33f-b99653e97e04",
+      "id": "7331abf0-0fec-d2c5-4048-6d82c21e920d",
       "name": "Scheduler Logic",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -62,5 +62,5 @@
     }
   ],
   "active": false,
-  "versionId": "99ac65df-5eef-4d96-9134-9d2bfa047c28"
+  "versionId": "4df0dc91-3f3c-df6b-faa5-35524abe2595"
 }

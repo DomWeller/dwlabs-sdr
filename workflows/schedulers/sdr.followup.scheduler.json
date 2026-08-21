@@ -2,7 +2,7 @@
   "name": "sdr.followup.scheduler",
   "nodes": [
     {
-      "id": "45e272cc-7b07-4eb3-a69a-3723116ef21a",
+      "id": "b31309dc-c7b6-93bb-6fa9-199b8101b18f",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "55ed39a4-dcde-4da0-b58f-a42b1a1797a6",
+      "id": "e0bcad29-fbf2-970e-bf76-e6ff6e2a5f81",
       "name": "Scheduler Logic",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -62,5 +62,5 @@
     }
   ],
   "active": false,
-  "versionId": "fa2b4349-da05-4f52-8efa-84a9e17c48d0"
+  "versionId": "c4e90885-b863-7cc6-3a01-0f1baa985460"
 }

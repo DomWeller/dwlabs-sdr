@@ -2,7 +2,7 @@
   "name": "sdr._normalize_contact",
   "nodes": [
     {
-      "id": "a4d19d84-26a2-45b6-945d-d26674fd6d6d",
+      "id": "65f5ed5b-d3c6-1ba4-d314-d472a8f5e378",
       "name": "Execute Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "4226709d-bf57-4523-afbc-00a750dd9385",
+      "id": "ca912454-e349-72d7-61ec-b808158b5949",
       "name": "Subworkflow Handler",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -53,5 +53,5 @@
     }
   ],
   "active": false,
-  "versionId": "87868d64-b01d-4c79-9071-683c0f5750c1"
+  "versionId": "76890c45-aced-2efb-e2c4-c0a39671489f"
 }

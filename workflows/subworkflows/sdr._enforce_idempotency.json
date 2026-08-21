@@ -2,7 +2,7 @@
   "name": "sdr._enforce_idempotency",
   "nodes": [
     {
-      "id": "120dc3dc-6cef-4f9b-af7c-81f8060bb8b0",
+      "id": "07443067-95b5-c34b-6253-daf763fd846a",
       "name": "Execute Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "7ce89680-037c-4a4e-b644-1f367212e1bb",
+      "id": "763a0a8c-aeb4-b509-80d3-a6d99ba291ca",
       "name": "Subworkflow Handler",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -53,5 +53,5 @@
     }
   ],
   "active": false,
-  "versionId": "1a605469-3306-4344-935e-fef79e24cb8f"
+  "versionId": "88359bc4-a501-fa8d-5296-5f743995177b"
 }

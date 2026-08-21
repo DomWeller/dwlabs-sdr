@@ -2,7 +2,7 @@
   "name": "sdr._redact_log",
   "nodes": [
     {
-      "id": "ae99487c-71a1-4e3c-842d-bcd050485ce3",
+      "id": "9bade697-302d-7d12-d451-8cf96871ae25",
       "name": "Execute Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "0a5a83bd-b549-443b-8c94-15dffb8455cd",
+      "id": "35842030-aa53-7dc9-7c62-0720c1413526",
       "name": "Subworkflow Handler",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -53,5 +53,5 @@
     }
   ],
   "active": false,
-  "versionId": "cbed3b2a-a883-43df-8a3a-4e8d3ac92528"
+  "versionId": "e4b5b0f1-f268-8c15-3f82-29afc4b4b92b"
 }

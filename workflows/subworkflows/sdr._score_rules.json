@@ -2,7 +2,7 @@
   "name": "sdr._score_rules",
   "nodes": [
     {
-      "id": "9f52268b-de4c-426d-ae51-250b735a36c1",
+      "id": "25a84c30-8c5c-16ee-704d-97d0ddbc86ed",
       "name": "Execute Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "53e7f1bc-ac40-414b-8a88-fe9af5ecf32d",
+      "id": "55119133-6528-ac3b-789a-c146939a5400",
       "name": "Subworkflow Handler",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -53,5 +53,5 @@
     }
   ],
   "active": false,
-  "versionId": "56dae4f2-86b2-448f-9145-764035e34757"
+  "versionId": "7ef59848-cf64-5fef-b9c4-237618a23892"
 }

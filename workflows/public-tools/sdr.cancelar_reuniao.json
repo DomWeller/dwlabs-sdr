@@ -2,7 +2,7 @@
   "name": "sdr.cancelar_reuniao",
   "nodes": [
     {
-      "id": "dbcfa125-fb29-4731-9ee9-e697acc4887b",
+      "id": "ef4a4f33-9bf5-d678-d30c-057230d2acd8",
       "name": "Receive Request",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -27,7 +27,7 @@
       }
     },
     {
-      "id": "f04b481b-3d48-4e18-9a32-eb8367294b2f",
+      "id": "f46e5750-ec46-67e2-a70b-9ba05e212692",
       "name": "Validate Headers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -41,7 +41,7 @@
       }
     },
     {
-      "id": "e0b8a869-c80d-47ca-995e-c8aeb0c6492e",
+      "id": "a0e957cc-6cbb-5691-75ce-0d52e9a5dcf1",
       "name": "Run SQL Function",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -62,7 +62,7 @@
       }
     },
     {
-      "id": "c1d958b2-4e17-40c8-9d0f-d804640ebd34",
+      "id": "f50f0e5f-43d1-3fb6-cc92-9aadc37aad6a",
       "name": "Reply",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
@@ -127,5 +127,5 @@
     }
   ],
   "active": false,
-  "versionId": "f121b2b1-b471-4dba-afa8-65c0f466ccfa"
+  "versionId": "7c930d63-58d8-2b47-27c0-39ae53811cd0"
 }

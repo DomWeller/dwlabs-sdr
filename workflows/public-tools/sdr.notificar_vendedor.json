@@ -2,7 +2,7 @@
   "name": "sdr.notificar_vendedor",
   "nodes": [
     {
-      "id": "772c8616-d484-430e-93a0-b1fe855cb02d",
+      "id": "e4aacc6d-d850-83d5-abd8-dd9dfed5d590",
       "name": "Receive Request",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -27,7 +27,7 @@
       }
     },
     {
-      "id": "7230c31b-e09a-458d-a009-5c3f31e1c940",
+      "id": "2c1b158a-bb13-263a-3dae-eec179d79e9e",
       "name": "Validate Headers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -41,7 +41,7 @@
       }
     },
     {
-      "id": "3a972de3-6941-4806-bfed-a41489b547fa",
+      "id": "965d8fc1-6f7d-1ff7-14fe-1dcc0abdaf3d",
       "name": "Run SQL Function",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -62,7 +62,7 @@
       }
     },
     {
-      "id": "d43c7859-6ea0-4b1c-8d8c-67c8b544ac25",
+      "id": "40f28e41-8eba-8e63-fa9e-e7293bd81897",
       "name": "Reply",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
@@ -127,5 +127,5 @@
     }
   ],
   "active": false,
-  "versionId": "c4ba6b0f-0cd6-4440-b3cc-886fb2b8d8b6"
+  "versionId": "a8be7bf9-1276-2ee5-04f6-fdb34f5eac6c"
 }

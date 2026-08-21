@@ -2,7 +2,7 @@
   "name": "sdr.sheets.sync.scheduler",
   "nodes": [
     {
-      "id": "15e3c6cf-10fa-47c7-9ca9-17aa3185c370",
+      "id": "7fecfe3a-5a73-69af-c886-fb811afc41b5",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "324f6282-5161-401c-894a-d1ad67795e60",
+      "id": "50973e07-3379-defc-2cdc-3f052cc6609d",
       "name": "Scheduler Logic",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -62,5 +62,5 @@
     }
   ],
   "active": false,
-  "versionId": "9a9cad4b-9586-4902-aeea-948173e86b35"
+  "versionId": "99f3b995-9719-40da-e1a8-5d99dfbce639"
 }

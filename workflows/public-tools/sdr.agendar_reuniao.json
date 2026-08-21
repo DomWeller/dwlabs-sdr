@@ -2,7 +2,7 @@
   "name": "sdr.agendar_reuniao",
   "nodes": [
     {
-      "id": "90d20e1d-7133-44ec-92b8-c84b7e8ebabc",
+      "id": "a0b69479-da63-19dd-2375-2c7b27dbc817",
       "name": "Receive Request",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -27,7 +27,7 @@
       }
     },
     {
-      "id": "f33a494b-deeb-4bc8-b958-ec82887dda72",
+      "id": "ba68d1e7-3e89-4181-543f-aebeb02b0dd7",
       "name": "Validate Headers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -41,7 +41,7 @@
       }
     },
     {
-      "id": "c90c137c-5a8d-4694-a8c2-66723d62d458",
+      "id": "bb7e5b9f-4698-1a8f-c6b8-a7376ec8c46c",
       "name": "Run SQL Function",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -62,7 +62,7 @@
       }
     },
     {
-      "id": "c1b6b958-2dde-4cd5-8477-655fb9d0d3f6",
+      "id": "b0402876-1fdc-0451-7ed9-5a136240ec71",
       "name": "Reply",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
@@ -127,5 +127,5 @@
     }
   ],
   "active": false,
-  "versionId": "53d20ad9-38c1-49f5-b7d1-77be5aebba66"
+  "versionId": "ccaf544f-f83e-b9cc-1a29-3630cf9b1d1f"
 }

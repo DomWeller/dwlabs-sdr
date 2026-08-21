@@ -2,7 +2,7 @@
   "name": "sdr.transcrever_audio",
   "nodes": [
     {
-      "id": "37d575d5-dd92-4f4d-ab1b-e75330551663",
+      "id": "5e757753-3244-b81a-6cc7-010aa4d5fba8",
       "name": "Receive Request",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -27,7 +27,7 @@
       }
     },
     {
-      "id": "866761f7-d3ff-4244-b0d0-086e4937772c",
+      "id": "067a714c-1739-dfbf-a105-86ece52030c5",
       "name": "Validate Headers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -41,7 +41,7 @@
       }
     },
     {
-      "id": "692c79ae-fedb-43f0-ae5b-20be720bce0d",
+      "id": "86781ca8-7885-eb05-9a2d-ae17c7e2eb1d",
       "name": "Run SQL Function",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -62,7 +62,7 @@
       }
     },
     {
-      "id": "ddbc6ab0-db5c-42cb-948b-0be7a2b3a3f8",
+      "id": "9b338bff-3fbf-6f18-b65c-5f0ca306692b",
       "name": "Reply",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
@@ -127,5 +127,5 @@
     }
   ],
   "active": false,
-  "versionId": "b23ea0c0-3636-464a-a181-e641923f8ed3"
+  "versionId": "db5af6b0-198e-f30a-efba-54eae0ffd5b2"
 }

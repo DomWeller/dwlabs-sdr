@@ -2,7 +2,7 @@
   "name": "sdr._meeting_policy",
   "nodes": [
     {
-      "id": "69377b0e-5d2f-469f-b3f5-26344f4d3505",
+      "id": "54ea1818-96e0-96f0-f017-53f0dde238e8",
       "name": "Execute Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "bc8a2d89-bd0e-4dbe-92e7-495e8b9466b9",
+      "id": "eba1fdce-ea9d-86d5-3367-cd694d4eb8e2",
       "name": "Subworkflow Handler",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -53,5 +53,5 @@
     }
   ],
   "active": false,
-  "versionId": "67de3331-c7c2-4ec9-8340-c0c2576532de"
+  "versionId": "c2caea30-d081-0f1e-9d4e-b9d52999d8ee"
 }

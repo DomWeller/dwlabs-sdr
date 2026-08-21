@@ -2,7 +2,7 @@
   "name": "sdr._metric_emit",
   "nodes": [
     {
-      "id": "937ebeee-20c2-42ca-ac9e-b524b06b2147",
+      "id": "9eb6c2bd-e078-310c-a503-84a652905544",
       "name": "Execute Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "8a424889-184c-40f2-8565-928ae9891845",
+      "id": "0cf101c0-5ff9-f2f0-d63e-b41c6a80accb",
       "name": "Subworkflow Handler",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -53,5 +53,5 @@
     }
   ],
   "active": false,
-  "versionId": "79036da3-cbe5-489f-b5de-3719d8dd8e75"
+  "versionId": "3f31e903-4c13-0d89-5bb9-ca1bda4bdbef"
 }
