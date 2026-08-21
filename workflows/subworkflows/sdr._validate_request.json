@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._validate_request',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+        "jsCode": "const input = $json ?? {};\nconst required = ['request_id', 'idempotency_key', 'tool_name', 'channel'];\nconst missing = required.filter((field) => !input[field]);\nif (missing.length > 0) {\n  return [{ json: { ok: false, error: { code: 'REQUEST_INVALID', message: `Campos obrigatorios ausentes: ${missing.join(', ')}`, retryable: false } } }];\n}\nreturn [{ json: { ok: true, validated: true, tool_name: input.tool_name, channel: input.channel } }];"
       }
     }
   ],

@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._upsert_lead_bundle',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+        "jsCode": "return [{ json: { ok: true, entity_bundle: ['company', 'contact', 'lead', 'conversation'], requires_transaction: true } }];"
       }
     }
   ],

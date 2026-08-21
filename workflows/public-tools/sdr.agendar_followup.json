@@ -2,17 +2,18 @@
   "name": "sdr.agendar_followup",
   "nodes": [
     {
-      "id": "cf9907e0-891e-362c-8852-aa5ae36d5fcc",
+      "id": "bc492003-e307-448e-b373-34b2e4f59f72",
       "name": "Receive Request",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "typeVersion": 2.1,
       "position": [
-        260,
+        220,
         300
       ],
       "parameters": {
         "httpMethod": "POST",
         "path": "dwlabs-sdr/agendar-followup",
+        "authentication": "headerAuth",
         "responseMode": "responseNode",
         "options": {
           "responseHeaders": {
@@ -24,35 +25,43 @@
             ]
           }
         }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "={{ $env.N8N_SDR_HEADER_AUTH_ID || \"DWLABS_SDR_HEADER_AUTH\" }}",
+          "name": "={{ $env.N8N_SDR_HEADER_AUTH_NAME || \"DWLabs SDR Header Auth\" }}"
+        }
       }
     },
     {
-      "id": "2c7f21ac-2d1c-1be5-d45d-40a8b45fb8b9",
-      "name": "Validate Headers",
+      "id": "fea14262-1af9-f9ed-4b16-0f77e0a5f9db",
+      "name": "Normalize Envelope",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        560,
+        520,
         300
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "const headers = $json.headers ?? {};\nconst body = $json.body ?? {};\nif (!headers.authorization) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'UNAUTHORIZED', message: 'Bearer ausente', retryable: false } }));\n}\nif (!headers['x-idempotency-key'] && !body.idempotency_key) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'IDEMPOTENCY_REQUIRED', message: 'Chave de idempotencia obrigatoria', retryable: false } }));\n}\nreturn [{ json: { ...$json, tool_name: 'agendar_followup' } }];"
+        "jsCode": "const crypto = require('node:crypto');\nconst headers = Object.fromEntries(Object.entries($json.headers ?? {}).map(([key, value]) => [String(key).toLowerCase(), value]));\nconst body = $json.body ?? {};\nconst toolName = 'agendar_followup';\nconst allowedChannels = new Set(['whatsapp', 'instagram', 'site', 'test']);\nif (headers['x-agent-id'] !== 'comercial') {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'AGENT_FORBIDDEN', message: 'Agente invalido.', retryable: false } }));\n}\nif (!body || typeof body !== 'object' || Array.isArray(body)) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'INVALID_BODY', message: 'Envelope JSON obrigatorio.', retryable: false } }));\n}\nfor (const required of ['request_id', 'idempotency_key', 'channel', 'actor', 'context', 'payload']) {\n  if (!(required in body)) {\n    throw new Error(JSON.stringify({ ok: false, error: { code: 'ENVELOPE_INVALID', message: `Campo ausente: ${required}.`, retryable: false } }));\n  }\n}\nif (!allowedChannels.has(String(body.channel))) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'CHANNEL_FORBIDDEN', message: 'Canal nao allowlisted.', retryable: false } }));\n}\nif (headers['x-channel'] && String(headers['x-channel']) !== String(body.channel)) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'CHANNEL_MISMATCH', message: 'Header e envelope divergentes.', retryable: false } }));\n}\nconst actor = body.actor ?? {};\nconst context = body.context ?? {};\nconst payload = body.payload ?? {};\nconst normalized = {\n  request_id: String(body.request_id),\n  idempotency_key: String(body.idempotency_key),\n  channel: String(body.channel),\n  actor,\n  context,\n  payload,\n  tool_name: toolName,\n  agent_id: headers['x-agent-id'],\n  correlation_id: String(headers['x-correlation-id'] || body.request_id),\n  external_event_id: String(context.message_id || body.request_id),\n  request_hash: crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex'),\n  contact_name: actor.contact_name ?? payload.contact_name ?? null,\n  phone: actor.phone ?? payload.phone ?? null,\n  email: actor.email ?? payload.email ?? null,\n  company_name: actor.company_name ?? payload.company_name ?? null,\n  role: actor.role ?? null,\n  conversation_id: context.conversation_id ?? payload.conversation_id ?? null,\n  lead_id: context.lead_id ?? payload.lead_id ?? null,\n  message_id: context.message_id ?? payload.source_message_id ?? null,\n  fragments: context.fragments ?? null,\n  locale: context.locale ?? 'pt-BR',\n  ...payload\n};\nconst sqlPayloadBase64 = Buffer.from(JSON.stringify(normalized), 'utf8').toString('base64');\nreturn [{ json: { ...normalized, sql_payload_base64: sqlPayloadBase64, mutation_expected: true } }];"
       }
     },
     {
-      "id": "bd246816-c945-b43d-1185-3f97f2f49eeb",
+      "id": "63ee60b2-681b-9a43-8c05-cd8deec6d4ba",
       "name": "Run SQL Function",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        860,
+        830,
         300
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "={{ `SELECT api.agendar_followup('${JSON.stringify($json.body).replace(/'/g, \"''\")}'::jsonb) AS result;` }}",
-        "options": {}
+        "query": "SELECT api.agendar_followup(convert_from(decode($1, 'base64'), 'UTF8')::jsonb) AS result;",
+        "options": {
+          "queryReplacement": "={{[$json.sql_payload_base64]}}"
+        }
       },
       "credentials": {
         "postgres": {
@@ -62,17 +71,31 @@
       }
     },
     {
-      "id": "1473354e-0c1c-d676-1772-98e49e4c116a",
+      "id": "5db7543e-ebda-ae65-f15d-2f762c472475",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1130,
+        300
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const row = Array.isArray($json) ? $json[0] : $json;\nconst result = row?.result ?? row;\nif (!result || typeof result !== 'object') {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'INVALID_SQL_RESPONSE', message: 'Resposta SQL invalida.', retryable: false } }));\n}\nreturn [{ json: result }];"
+      }
+    },
+    {
+      "id": "b893d597-edd9-f5fc-6ae7-2e63c33f1be9",
       "name": "Reply",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1160,
+        1410,
         300
       ],
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ $json.result || $json }}",
+        "responseBody": "={{ $json }}",
         "options": {
           "responseCode": 200
         }
@@ -84,14 +107,14 @@
       "main": [
         [
           {
-            "node": "Validate Headers",
+            "node": "Normalize Envelope",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Validate Headers": {
+    "Normalize Envelope": {
       "main": [
         [
           {
@@ -103,6 +126,17 @@
       ]
     },
     "Run SQL Function": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unwrap Result": {
       "main": [
         [
           {

@@ -32,7 +32,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    scheduler: 'sdr.sheets.sync.scheduler',\n    status: 'ready',\n    mode: 'safe',\n  },\n}];"
+        "jsCode": "const enabled = String($env.SDR_GOOGLE_SHEETS_ENABLED || 'false') === 'true';\nif (!enabled) {\n  return [{ json: { ok: false, code: 'GOOGLE_SHEETS_DISABLED', action: 'skip', retryable: false } }];\n}\nreturn [{ json: { ok: true, scheduler: 'sheets_sync', action: 'dispatch_sheet_sync', mode: 'private_network_only' } }];"
       }
     }
   ],

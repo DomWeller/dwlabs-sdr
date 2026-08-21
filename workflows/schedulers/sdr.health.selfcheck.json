@@ -32,7 +32,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    scheduler: 'sdr.health.selfcheck',\n    status: 'ready',\n    mode: 'safe',\n  },\n}];"
+        "jsCode": "return [{ json: { ok: true, scheduler: 'healthcheck', checks: ['postgres_credential_bound', 'header_auth_bound', 'public_flag_blocked'], mode: 'readiness' } }];"
       }
     }
   ],

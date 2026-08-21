@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._score_rules',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+        "jsCode": "const facts = $json.facts ?? {};\nlet score = 10;\nif (facts.has_defined_offer) score += 15;\nif (facts.urgency_level === 'media') score += 12;\nif (facts.urgency_level === 'alta') score += 22;\nif (facts.budget_signal === 'medio') score += 12;\nif (facts.budget_signal === 'alto') score += 18;\nif (facts.authority_level === 'decisor') score += 14;\nif (facts.inbound_intent === 'forte') score += 18;\nscore = Math.max(0, Math.min(100, score));\nconst band = score >= 85 ? 'muito_quente' : score >= 70 ? 'quente' : score >= 40 ? 'morno' : 'frio';\nreturn [{ json: { ok: true, score, temperature_band: band } }];"
       }
     }
   ],

@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._metric_emit',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+        "jsCode": "return [{ json: { ok: true, metric_name: $json.metric_name ?? 'workflow_event', metric_value: Number($json.metric_value ?? 1), dimensions: $json.dimensions ?? {} } }];"
       }
     }
   ],

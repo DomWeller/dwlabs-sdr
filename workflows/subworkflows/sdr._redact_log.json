@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._redact_log',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+        "jsCode": "const redact = (value) => String(value ?? '').replace(/55\\d{10,13}/g, '[telefone-redigido]').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, '[email-redigido]');\nreturn [{ json: { ok: true, redacted: redact(JSON.stringify($json)) } }];"
       }
     }
   ],

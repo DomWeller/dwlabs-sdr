@@ -228,9 +228,14 @@ CREATE TABLE IF NOT EXISTS ops.idempotency_inbox (
   inbox_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_system TEXT NOT NULL,
   external_event_id TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
   payload_hash TEXT NOT NULL,
+  request_envelope JSONB NOT NULL DEFAULT '{}'::jsonb,
+  response_payload JSONB,
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  replay_count INTEGER NOT NULL DEFAULT 0,
   UNIQUE (source_system, external_event_id),
   UNIQUE (idempotency_key)
 );
@@ -352,6 +357,26 @@ AS $$
       'redactions_applied', '[]'::jsonb
     )
   )
+$$;
+
+CREATE OR REPLACE FUNCTION ops.integration_enabled(flag_name_value TEXT)
+RETURNS BOOLEAN
+LANGUAGE SQL
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM ops.runtime_flags
+    WHERE flag_name = flag_name_value
+      AND enabled
+  )
+$$;
+
+CREATE OR REPLACE FUNCTION ops.payload_hash(input JSONB)
+RETURNS TEXT
+LANGUAGE SQL
+IMMUTABLE
+AS $$
+  SELECT encode(digest(COALESCE(input::TEXT, ''), 'sha256'), 'hex')
 $$;
 
 CREATE OR REPLACE FUNCTION ops.calculate_score_from_payload(payload JSONB)
@@ -570,12 +595,58 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
   company_row core.companies%ROWTYPE;
   contact_row core.contacts%ROWTYPE;
   lead_row core.leads%ROWTYPE;
   conversation_row core.conversations%ROWTYPE;
   created_flag BOOLEAN := FALSE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  response_value JSONB;
 BEGIN
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+
+  SELECT *
+  INTO idempotency_row
+  FROM ops.idempotency_inbox
+  WHERE idempotency_key = payload ->> 'idempotency_key'
+  FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox
+      SET replay_count = replay_count + 1
+      WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (
+      source_system,
+      external_event_id,
+      tool_name,
+      idempotency_key,
+      payload_hash,
+      request_envelope
+    )
+    VALUES (
+      'openclaw',
+      COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'),
+      'salvar_lead',
+      payload ->> 'idempotency_key',
+      payload_hash_value,
+      payload
+    )
+    RETURNING * INTO idempotency_row;
+  END IF;
+
   IF payload ->> 'company_name' IS NOT NULL THEN
     INSERT INTO core.companies (name)
     VALUES (payload ->> 'company_name')
@@ -663,7 +734,7 @@ BEGIN
     )
   );
 
-  RETURN ops.wrap_success(
+  response_value := ops.wrap_success(
     jsonb_build_object(
       'lead_id', lead_row.lead_id,
       'contact_id', contact_row.contact_id,
@@ -673,87 +744,185 @@ BEGIN
     ),
     ARRAY['phone', 'email']
   );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
 END
 $$;
 
 CREATE OR REPLACE FUNCTION api.atualizar_lead(payload JSONB)
 RETURNS JSONB
-LANGUAGE SQL
+LANGUAGE plpgsql
 AS $$
-  WITH updated AS (
-    UPDATE core.leads
-    SET stage = COALESCE((payload ->> 'stage')::core.lead_stage, stage),
-        needs_summary = COALESCE(array_to_string(ARRAY(SELECT jsonb_array_elements_text(payload -> 'needs')), '; '), needs_summary),
-        indicative_budget = COALESCE(payload ->> 'indicative_budget', indicative_budget),
-        urgency = COALESCE(payload ->> 'urgency', urgency),
-        origin_detail = COALESCE(payload ->> 'origin', origin_detail),
-        owner_name = COALESCE(payload ->> 'owner', owner_name),
-        updated_at = NOW()
-    WHERE lead_id = (payload ->> 'lead_id')::UUID
-    RETURNING lead_id
-  )
-  SELECT COALESCE(
-    (SELECT ops.wrap_success(jsonb_build_object('lead_id', lead_id, 'updated', TRUE)) FROM updated),
+DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  updated_lead_id UUID;
+  response_value JSONB;
+BEGIN
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  IF NULLIF(payload ->> 'lead_id', '') IS NULL THEN
+    RETURN ops.wrap_error('LEAD_ID_REQUIRED', 'lead_id obrigatorio.', FALSE);
+  END IF;
+
+  IF payload -> 'context' ->> 'lead_id' IS NOT NULL
+     AND payload ->> 'lead_id' IS NOT NULL
+     AND payload -> 'context' ->> 'lead_id' <> payload ->> 'lead_id' THEN
+    RETURN ops.wrap_error('LEAD_CONTEXT_MISMATCH', 'Contexto do lead divergente.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+
+  SELECT *
+  INTO idempotency_row
+  FROM ops.idempotency_inbox
+  WHERE idempotency_key = payload ->> 'idempotency_key'
+  FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox
+      SET replay_count = replay_count + 1
+      WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (
+      source_system,
+      external_event_id,
+      tool_name,
+      idempotency_key,
+      payload_hash,
+      request_envelope
+    )
+    VALUES (
+      'openclaw',
+      COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'),
+      'atualizar_lead',
+      payload ->> 'idempotency_key',
+      payload_hash_value,
+      payload
+    )
+    RETURNING * INTO idempotency_row;
+  END IF;
+
+  UPDATE core.leads
+  SET stage = COALESCE((payload ->> 'stage')::core.lead_stage, stage),
+      needs_summary = COALESCE(array_to_string(ARRAY(SELECT jsonb_array_elements_text(payload -> 'needs')), '; '), needs_summary),
+      indicative_budget = COALESCE(payload ->> 'indicative_budget', indicative_budget),
+      urgency = COALESCE(payload ->> 'urgency', urgency),
+      origin_detail = COALESCE(payload ->> 'origin', origin_detail),
+      owner_name = COALESCE(payload ->> 'owner', owner_name),
+      updated_at = NOW()
+  WHERE lead_id = (payload ->> 'lead_id')::UUID
+  RETURNING lead_id INTO updated_lead_id;
+
+  response_value := COALESCE(
+    CASE
+      WHEN updated_lead_id IS NOT NULL THEN ops.wrap_success(jsonb_build_object('lead_id', updated_lead_id, 'updated', TRUE))
+      ELSE NULL
+    END,
     ops.wrap_error('LEAD_NOT_FOUND', 'Lead nao encontrado.', FALSE)
-  )
+  );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
+END
 $$;
 
 CREATE OR REPLACE FUNCTION api.buscar_lead(payload JSONB)
 RETURNS JSONB
-LANGUAGE SQL
+LANGUAGE plpgsql
 AS $$
-  SELECT COALESCE(
-    (
-      SELECT ops.wrap_success(
-        jsonb_build_object(
-          'lead',
-          jsonb_build_object(
-            'lead_id', l.lead_id,
-            'stage', l.stage,
-            'score', l.score,
-            'temperature_band', l.temperature_band,
-            'needs', COALESCE(string_to_array(l.needs_summary, '; '), ARRAY[]::TEXT[])
-          )
-        )
+DECLARE
+  response_value JSONB;
+BEGIN
+  IF NULLIF(payload ->> 'lead_id', '') IS NULL
+     AND NULLIF(payload ->> 'phone', '') IS NULL
+     AND NULLIF(payload ->> 'email', '') IS NULL THEN
+    RETURN ops.wrap_error('LEAD_LOOKUP_REQUIRED', 'Informe lead_id, phone ou email.', FALSE);
+  END IF;
+
+  SELECT ops.wrap_success(
+    jsonb_build_object(
+      'lead',
+      jsonb_build_object(
+        'lead_id', l.lead_id,
+        'stage', l.stage,
+        'score', l.score,
+        'temperature_band', l.temperature_band,
+        'needs', COALESCE(string_to_array(l.needs_summary, '; '), ARRAY[]::TEXT[])
       )
-      FROM core.leads l
-      JOIN core.contacts c ON c.contact_id = l.contact_id
-      WHERE l.lead_id = COALESCE((payload ->> 'lead_id')::UUID, l.lead_id)
-         OR c.normalized_phone = ops.normalize_phone(payload ->> 'phone')
-         OR c.email = lower(NULLIF(payload ->> 'email', ''))
-      LIMIT 1
-    ),
-    ops.wrap_error('LEAD_NOT_FOUND', 'Lead nao encontrado.', FALSE)
+    )
   )
+  INTO response_value
+  FROM core.leads l
+  JOIN core.contacts c ON c.contact_id = l.contact_id
+  WHERE (
+      NULLIF(payload ->> 'lead_id', '') IS NOT NULL
+      AND l.lead_id = (payload ->> 'lead_id')::UUID
+    )
+    OR (
+      NULLIF(payload ->> 'phone', '') IS NOT NULL
+      AND c.normalized_phone = ops.normalize_phone(payload ->> 'phone')
+    )
+    OR (
+      NULLIF(payload ->> 'email', '') IS NOT NULL
+      AND c.email = lower(NULLIF(payload ->> 'email', ''))
+    )
+  LIMIT 1;
+
+  RETURN COALESCE(response_value, ops.wrap_error('LEAD_NOT_FOUND', 'Lead nao encontrado.', FALSE));
+END
 $$;
 
 CREATE OR REPLACE FUNCTION api.buscar_cliente(payload JSONB)
 RETURNS JSONB
-LANGUAGE SQL
+LANGUAGE plpgsql
 AS $$
-  SELECT COALESCE(
-    (
-      SELECT ops.wrap_success(
-        jsonb_build_object(
-          'customer',
-          jsonb_build_object(
-            'contact_id', c.contact_id,
-            'display_name', c.full_name,
-            'company_name', comp.name,
-            'stage', l.stage
-          )
-        )
+DECLARE
+  response_value JSONB;
+BEGIN
+  IF NULLIF(payload ->> 'contact_ref', '') IS NULL THEN
+    RETURN ops.wrap_error('CONTACT_REF_REQUIRED', 'contact_ref obrigatorio.', FALSE);
+  END IF;
+
+  SELECT ops.wrap_success(
+    jsonb_build_object(
+      'customer',
+      jsonb_build_object(
+        'contact_id', c.contact_id,
+        'display_name', c.full_name,
+        'company_name', comp.name,
+        'stage', l.stage
       )
-      FROM core.contacts c
-      LEFT JOIN core.companies comp ON comp.company_id = c.company_id
-      LEFT JOIN core.leads l ON l.contact_id = c.contact_id
-      WHERE c.contact_id::TEXT = payload ->> 'contact_ref'
-         OR c.normalized_phone = ops.normalize_phone(payload ->> 'contact_ref')
-         OR c.email = lower(payload ->> 'contact_ref')
-      LIMIT 1
-    ),
-    ops.wrap_error('CUSTOMER_NOT_FOUND', 'Cliente nao encontrado.', FALSE)
+    )
   )
+  INTO response_value
+  FROM core.contacts c
+  LEFT JOIN core.companies comp ON comp.company_id = c.company_id
+  LEFT JOIN core.leads l ON l.contact_id = c.contact_id
+  WHERE c.contact_id::TEXT = payload ->> 'contact_ref'
+     OR c.normalized_phone = ops.normalize_phone(payload ->> 'contact_ref')
+     OR c.email = lower(payload ->> 'contact_ref')
+  LIMIT 1;
+
+  RETURN COALESCE(response_value, ops.wrap_error('CUSTOMER_NOT_FOUND', 'Cliente nao encontrado.', FALSE));
+END
 $$;
 
 CREATE OR REPLACE FUNCTION api.registrar_interacao(payload JSONB)
@@ -761,9 +930,58 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
   interaction_row core.interactions%ROWTYPE;
   redacted_content TEXT := ops.redact_text(payload ->> 'content');
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  response_value JSONB;
 BEGIN
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  IF NULLIF(payload ->> 'lead_id', '') IS NULL AND NULLIF(payload ->> 'conversation_id', '') IS NULL THEN
+    RETURN ops.wrap_error('LEAD_OR_CONVERSATION_REQUIRED', 'lead_id ou conversation_id obrigatorio.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+
+  SELECT *
+  INTO idempotency_row
+  FROM ops.idempotency_inbox
+  WHERE idempotency_key = payload ->> 'idempotency_key'
+  FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox
+      SET replay_count = replay_count + 1
+      WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (
+      source_system,
+      external_event_id,
+      tool_name,
+      idempotency_key,
+      payload_hash,
+      request_envelope
+    )
+    VALUES (
+      'openclaw',
+      COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'),
+      'registrar_interacao',
+      payload ->> 'idempotency_key',
+      payload_hash_value,
+      payload
+    )
+    RETURNING * INTO idempotency_row;
+  END IF;
+
   INSERT INTO core.interactions (
     lead_id,
     conversation_id,
@@ -788,10 +1006,17 @@ BEGIN
     jsonb_build_object('interaction_type', payload ->> 'interaction_type', 'content', redacted_content)
   );
 
-  RETURN ops.wrap_success(
+  response_value := ops.wrap_success(
     jsonb_build_object('interaction_id', interaction_row.interaction_id, 'stored', TRUE),
     ARRAY['content', 'phone', 'email']
   );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
 END
 $$;
 
@@ -820,51 +1045,21 @@ $$;
 
 CREATE OR REPLACE FUNCTION api.verificar_agenda(payload JSONB)
 RETURNS JSONB
-LANGUAGE SQL
+LANGUAGE plpgsql
 AS $$
-  WITH raw_slots AS (
-    SELECT slot_start, slot_start + make_interval(mins => COALESCE((payload ->> 'duration_minutes')::INTEGER, 30)) AS slot_end
-    FROM generate_series(
-      (payload ->> 'start_at')::TIMESTAMPTZ,
-      (payload ->> 'end_at')::TIMESTAMPTZ,
-      make_interval(mins => COALESCE((payload ->> 'duration_minutes')::INTEGER, 30))
-    ) AS slot_start
-  ),
-  filtered_slots AS (
-    SELECT slot_start, slot_end
-    FROM raw_slots
-    WHERE EXTRACT(ISODOW FROM slot_start AT TIME ZONE 'America/Sao_Paulo') BETWEEN 1 AND 5
-      AND (slot_start AT TIME ZONE 'America/Sao_Paulo')::TIME >= TIME '09:00'
-      AND (slot_end AT TIME ZONE 'America/Sao_Paulo')::TIME <= TIME '18:00'
-      AND NOT EXISTS (
-        SELECT 1
-        FROM core.meetings m
-        WHERE m.status IN ('scheduled', 'rescheduled')
-          AND tstzrange(m.starts_at, m.ends_at, '[)') && tstzrange(slot_start, slot_end, '[)')
-      )
-    ORDER BY slot_start
-    LIMIT 8
-  )
-  SELECT ops.wrap_success(
+BEGIN
+  IF NOT ops.integration_enabled('google_calendar_enabled') THEN
+    RETURN ops.wrap_error('CALENDAR_DISABLED', 'Google Calendar desativado ou sem credencial valida.', FALSE);
+  END IF;
+
+  RETURN ops.wrap_success(
     jsonb_build_object(
-      'slots',
-      COALESCE(
-        (
-          SELECT jsonb_agg(
-            jsonb_build_object(
-              'starts_at', slot_start,
-              'ends_at', slot_end,
-              'channel', 'google_calendar'
-            )
-          )
-          FROM filtered_slots
-        ),
-        '[]'::jsonb
-      ),
-      'integration_status',
-      CASE WHEN EXISTS (SELECT 1 FROM ops.runtime_flags WHERE flag_name = 'google_calendar_enabled' AND enabled) THEN 'enabled' ELSE 'disabled' END
+      'slots', '[]'::jsonb,
+      'integration_status', 'enabled',
+      'dispatch_required', TRUE
     )
-  )
+  );
+END
 $$;
 
 CREATE OR REPLACE FUNCTION api.agendar_reuniao(payload JSONB)
@@ -872,12 +1067,61 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
   lead_row core.leads%ROWTYPE;
   contact_row core.contacts%ROWTYPE;
   meeting_row core.meetings%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  response_value JSONB;
 BEGIN
+  IF NOT ops.integration_enabled('google_calendar_enabled') THEN
+    RETURN ops.wrap_error('CALENDAR_DISABLED', 'Google Calendar desativado ou sem credencial valida.', FALSE);
+  END IF;
+
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
   IF COALESCE((payload ->> 'authorized')::BOOLEAN, FALSE) = FALSE THEN
     RETURN ops.wrap_error('MEETING_AUTH_REQUIRED', 'Autorizacao explicita do lead e obrigatoria.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+
+  SELECT *
+  INTO idempotency_row
+  FROM ops.idempotency_inbox
+  WHERE idempotency_key = payload ->> 'idempotency_key'
+  FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox
+      SET replay_count = replay_count + 1
+      WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (
+      source_system,
+      external_event_id,
+      tool_name,
+      idempotency_key,
+      payload_hash,
+      request_envelope
+    )
+    VALUES (
+      'openclaw',
+      COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'),
+      'agendar_reuniao',
+      payload ->> 'idempotency_key',
+      payload_hash_value,
+      payload
+    )
+    RETURNING * INTO idempotency_row;
   END IF;
 
   SELECT * INTO lead_row FROM core.leads WHERE lead_id = (payload ->> 'lead_id')::UUID;
@@ -909,87 +1153,190 @@ BEGIN
     jsonb_build_object('meeting_id', meeting_row.meeting_id, 'starts_at', meeting_row.starts_at, 'ends_at', meeting_row.ends_at)
   );
 
-  RETURN ops.wrap_success(
+  response_value := ops.wrap_success(
     jsonb_build_object(
       'meeting_id', meeting_row.meeting_id,
       'status', meeting_row.status,
-      'external_sync', CASE WHEN EXISTS (SELECT 1 FROM ops.runtime_flags WHERE flag_name = 'google_calendar_enabled' AND enabled) THEN 'pending' ELSE 'disabled' END
+      'external_sync', 'pending'
     )
   );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
 END
 $$;
 
 CREATE OR REPLACE FUNCTION api.reagendar_reuniao(payload JSONB)
 RETURNS JSONB
-LANGUAGE SQL
+LANGUAGE plpgsql
 AS $$
-  WITH updated AS (
-    UPDATE core.meetings
-    SET starts_at = (payload ->> 'target_start_at')::TIMESTAMPTZ,
-        ends_at = (payload ->> 'target_end_at')::TIMESTAMPTZ,
-        status = 'rescheduled',
-        updated_at = NOW()
-    WHERE meeting_id = (payload ->> 'meeting_id')::UUID
-    RETURNING meeting_id
-  )
-  SELECT COALESCE(
-    (SELECT ops.wrap_success(jsonb_build_object('meeting_id', meeting_id, 'rescheduled', TRUE)) FROM updated),
+DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  updated_meeting_id UUID;
+  response_value JSONB;
+BEGIN
+  IF NOT ops.integration_enabled('google_calendar_enabled') THEN
+    RETURN ops.wrap_error('CALENDAR_DISABLED', 'Google Calendar desativado ou sem credencial valida.', FALSE);
+  END IF;
+
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+  SELECT * INTO idempotency_row FROM ops.idempotency_inbox WHERE idempotency_key = payload ->> 'idempotency_key' FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox SET replay_count = replay_count + 1 WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (source_system, external_event_id, tool_name, idempotency_key, payload_hash, request_envelope)
+    VALUES ('openclaw', COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'), 'reagendar_reuniao', payload ->> 'idempotency_key', payload_hash_value, payload)
+    RETURNING * INTO idempotency_row;
+  END IF;
+
+  UPDATE core.meetings
+  SET starts_at = (payload ->> 'target_start_at')::TIMESTAMPTZ,
+      ends_at = (payload ->> 'target_end_at')::TIMESTAMPTZ,
+      status = 'rescheduled',
+      updated_at = NOW()
+  WHERE meeting_id = (payload ->> 'meeting_id')::UUID
+  RETURNING meeting_id INTO updated_meeting_id;
+
+  response_value := COALESCE(
+    CASE
+      WHEN updated_meeting_id IS NOT NULL THEN ops.wrap_success(jsonb_build_object('meeting_id', updated_meeting_id, 'rescheduled', TRUE))
+      ELSE NULL
+    END,
     ops.wrap_error('MEETING_NOT_FOUND', 'Reuniao nao encontrada.', FALSE)
-  )
+  );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
+END
 $$;
 
 CREATE OR REPLACE FUNCTION api.cancelar_reuniao(payload JSONB)
 RETURNS JSONB
-LANGUAGE SQL
+LANGUAGE plpgsql
 AS $$
-  WITH updated AS (
-    UPDATE core.meetings
-    SET status = 'cancelled',
-        notes = COALESCE(payload ->> 'reason', notes),
-        updated_at = NOW()
-    WHERE meeting_id = (payload ->> 'meeting_id')::UUID
-    RETURNING meeting_id
-  )
-  SELECT COALESCE(
-    (SELECT ops.wrap_success(jsonb_build_object('meeting_id', meeting_id, 'cancelled', TRUE)) FROM updated),
+DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  updated_meeting_id UUID;
+  response_value JSONB;
+BEGIN
+  IF NOT ops.integration_enabled('google_calendar_enabled') THEN
+    RETURN ops.wrap_error('CALENDAR_DISABLED', 'Google Calendar desativado ou sem credencial valida.', FALSE);
+  END IF;
+
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+  SELECT * INTO idempotency_row FROM ops.idempotency_inbox WHERE idempotency_key = payload ->> 'idempotency_key' FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox SET replay_count = replay_count + 1 WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (source_system, external_event_id, tool_name, idempotency_key, payload_hash, request_envelope)
+    VALUES ('openclaw', COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'), 'cancelar_reuniao', payload ->> 'idempotency_key', payload_hash_value, payload)
+    RETURNING * INTO idempotency_row;
+  END IF;
+
+  UPDATE core.meetings
+  SET status = 'cancelled',
+      notes = COALESCE(payload ->> 'reason', notes),
+      updated_at = NOW()
+  WHERE meeting_id = (payload ->> 'meeting_id')::UUID
+  RETURNING meeting_id INTO updated_meeting_id;
+
+  response_value := COALESCE(
+    CASE
+      WHEN updated_meeting_id IS NOT NULL THEN ops.wrap_success(jsonb_build_object('meeting_id', updated_meeting_id, 'cancelled', TRUE))
+      ELSE NULL
+    END,
     ops.wrap_error('MEETING_NOT_FOUND', 'Reuniao nao encontrada.', FALSE)
-  )
+  );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
+END
 $$;
 
 CREATE OR REPLACE FUNCTION api.criar_resumo(payload JSONB)
 RETURNS JSONB
-LANGUAGE SQL
+LANGUAGE plpgsql
 AS $$
-  SELECT COALESCE(
-    (
-      SELECT ops.wrap_success(
-        jsonb_build_object(
-          'summary',
-          concat_ws(
-            ' | ',
-            'stage=' || l.stage,
-            'score=' || l.score,
-            'temperatura=' || l.temperature_band,
-            'necessidades=' || COALESCE(l.needs_summary, 'nao informado'),
-            'ultimas_interacoes=' || COALESCE((
-              SELECT string_agg(i.content_redacted, ' / ' ORDER BY i.created_at DESC)
-              FROM (
-                SELECT content_redacted, created_at
-                FROM core.interactions
-                WHERE lead_id = l.lead_id
-                ORDER BY created_at DESC
-                LIMIT 5
-              ) i
-            ), 'sem historico')
-          )
-        )
+DECLARE
+  response_value JSONB;
+BEGIN
+  IF NULLIF(payload ->> 'lead_id', '') IS NULL AND NULLIF(payload ->> 'conversation_id', '') IS NULL THEN
+    RETURN ops.wrap_error('SUMMARY_CONTEXT_REQUIRED', 'lead_id ou conversation_id obrigatorio.', FALSE);
+  END IF;
+
+  SELECT ops.wrap_success(
+    jsonb_build_object(
+      'summary',
+      concat_ws(
+        ' | ',
+        'stage=' || l.stage,
+        'score=' || l.score,
+        'temperatura=' || l.temperature_band,
+        'necessidades=' || COALESCE(l.needs_summary, 'nao informado'),
+        'ultimas_interacoes=' || COALESCE((
+          SELECT string_agg(i.content_redacted, ' / ' ORDER BY i.created_at DESC)
+          FROM (
+            SELECT content_redacted, created_at
+            FROM core.interactions
+            WHERE lead_id = l.lead_id
+            ORDER BY created_at DESC
+            LIMIT 5
+          ) i
+        ), 'sem historico')
       )
-      FROM core.leads l
-      WHERE l.lead_id = COALESCE(NULLIF(payload ->> 'lead_id', '')::UUID, l.lead_id)
-      LIMIT 1
-    ),
-    ops.wrap_error('LEAD_NOT_FOUND', 'Lead nao encontrado.', FALSE)
+    )
   )
+  INTO response_value
+  FROM core.leads l
+  LEFT JOIN core.conversations conv ON conv.lead_id = l.lead_id
+  WHERE (
+      NULLIF(payload ->> 'lead_id', '') IS NOT NULL
+      AND l.lead_id = (payload ->> 'lead_id')::UUID
+    )
+    OR (
+      NULLIF(payload ->> 'conversation_id', '') IS NOT NULL
+      AND conv.conversation_id = (payload ->> 'conversation_id')::UUID
+    )
+  LIMIT 1;
+
+  RETURN COALESCE(response_value, ops.wrap_error('LEAD_NOT_FOUND', 'Lead nao encontrado.', FALSE));
+END
 $$;
 
 CREATE OR REPLACE FUNCTION api.notificar_vendedor(payload JSONB)
@@ -997,22 +1344,57 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
   notification_row ops.notification_outbox%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  response_value JSONB;
 BEGIN
+  IF NOT ops.integration_enabled('notification_webhook_enabled') THEN
+    RETURN ops.wrap_error('NOTIFICATION_DISABLED', 'Canal de notificacao desativado ou sem credencial valida.', FALSE);
+  END IF;
+
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+  SELECT * INTO idempotency_row FROM ops.idempotency_inbox WHERE idempotency_key = payload ->> 'idempotency_key' FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox SET replay_count = replay_count + 1 WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (source_system, external_event_id, tool_name, idempotency_key, payload_hash, request_envelope)
+    VALUES ('openclaw', COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'), 'notificar_vendedor', payload ->> 'idempotency_key', payload_hash_value, payload)
+    RETURNING * INTO idempotency_row;
+  END IF;
+
   INSERT INTO ops.notification_outbox (lead_id, mode, payload)
   VALUES (
     NULLIF(payload ->> 'lead_id', '')::UUID,
-    COALESCE((SELECT CASE WHEN enabled THEN 'webhook' ELSE 'mock' END FROM ops.runtime_flags WHERE flag_name = 'notification_webhook_enabled'), 'mock'),
+    'webhook',
     payload
   )
   RETURNING * INTO notification_row;
 
-  RETURN ops.wrap_success(
+  response_value := ops.wrap_success(
     jsonb_build_object(
       'notification_id', notification_row.notification_id,
       'mode', notification_row.mode
     )
   );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
 END
 $$;
 
@@ -1021,8 +1403,32 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
   followup_row core.followups%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  response_value JSONB;
 BEGIN
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+  SELECT * INTO idempotency_row FROM ops.idempotency_inbox WHERE idempotency_key = payload ->> 'idempotency_key' FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox SET replay_count = replay_count + 1 WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (source_system, external_event_id, tool_name, idempotency_key, payload_hash, request_envelope)
+    VALUES ('openclaw', COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'), 'agendar_followup', payload ->> 'idempotency_key', payload_hash_value, payload)
+    RETURNING * INTO idempotency_row;
+  END IF;
+
   INSERT INTO core.followups (lead_id, policy_code, scheduled_for, status)
   VALUES (
     (payload ->> 'lead_id')::UUID,
@@ -1032,26 +1438,78 @@ BEGIN
   )
   RETURNING * INTO followup_row;
 
-  RETURN ops.wrap_success(
+  response_value := ops.wrap_success(
     jsonb_build_object('followup_id', followup_row.followup_id, 'scheduled', TRUE)
   );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
 END
 $$;
 
 CREATE OR REPLACE FUNCTION api.cancelar_followup(payload JSONB)
 RETURNS JSONB
-LANGUAGE SQL
+LANGUAGE plpgsql
 AS $$
-  WITH updated AS (
-    UPDATE core.followups
-    SET status = 'cancelled',
-        stop_reason = COALESCE(payload ->> 'reason', 'manual'),
-        updated_at = NOW()
-    WHERE followup_id = COALESCE(NULLIF(payload ->> 'followup_id', '')::UUID, followup_id)
-      AND (payload ->> 'lead_id' IS NULL OR lead_id = (payload ->> 'lead_id')::UUID)
-    RETURNING followup_id
-  )
-  SELECT ops.wrap_success(jsonb_build_object('cancelled', EXISTS (SELECT 1 FROM updated)))
+DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  cancelled_followup_id UUID;
+  response_value JSONB;
+BEGIN
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  IF NULLIF(payload ->> 'followup_id', '') IS NULL AND NULLIF(payload ->> 'lead_id', '') IS NULL THEN
+    RETURN ops.wrap_error('FOLLOWUP_TARGET_REQUIRED', 'followup_id ou lead_id obrigatorio.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+  SELECT * INTO idempotency_row FROM ops.idempotency_inbox WHERE idempotency_key = payload ->> 'idempotency_key' FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox SET replay_count = replay_count + 1 WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (source_system, external_event_id, tool_name, idempotency_key, payload_hash, request_envelope)
+    VALUES ('openclaw', COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'), 'cancelar_followup', payload ->> 'idempotency_key', payload_hash_value, payload)
+    RETURNING * INTO idempotency_row;
+  END IF;
+
+  UPDATE core.followups
+  SET status = 'cancelled',
+      stop_reason = COALESCE(payload ->> 'reason', 'manual'),
+      updated_at = NOW()
+  WHERE (
+      NULLIF(payload ->> 'followup_id', '') IS NOT NULL
+      AND followup_id = (payload ->> 'followup_id')::UUID
+    )
+    OR (
+      NULLIF(payload ->> 'followup_id', '') IS NULL
+      AND NULLIF(payload ->> 'lead_id', '') IS NOT NULL
+      AND lead_id = (payload ->> 'lead_id')::UUID
+    )
+  RETURNING followup_id INTO cancelled_followup_id;
+
+  response_value := ops.wrap_success(jsonb_build_object('cancelled', cancelled_followup_id IS NOT NULL));
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
+END
 $$;
 
 CREATE OR REPLACE FUNCTION api.buscar_conhecimento(payload JSONB)
@@ -1105,8 +1563,32 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
   handoff_row core.handoffs%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  response_value JSONB;
 BEGIN
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+  SELECT * INTO idempotency_row FROM ops.idempotency_inbox WHERE idempotency_key = payload ->> 'idempotency_key' FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox SET replay_count = replay_count + 1 WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (source_system, external_event_id, tool_name, idempotency_key, payload_hash, request_envelope)
+    VALUES ('openclaw', COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'), 'transferir_humano', payload ->> 'idempotency_key', payload_hash_value, payload)
+    RETURNING * INTO idempotency_row;
+  END IF;
+
   INSERT INTO core.handoffs (lead_id, reason, priority, status)
   VALUES (
     (payload ->> 'lead_id')::UUID,
@@ -1123,12 +1605,19 @@ BEGIN
   WHERE lead_id = handoff_row.lead_id
     AND status = 'scheduled';
 
-  RETURN ops.wrap_success(
+  response_value := ops.wrap_success(
     jsonb_build_object(
       'handoff_id', handoff_row.handoff_id,
       'blocked_automation', TRUE
     )
   );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
 END
 $$;
 
@@ -1137,22 +1626,57 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  idempotency_row ops.idempotency_inbox%ROWTYPE;
   sync_row ops.sheet_sync_outbox%ROWTYPE;
+  payload_hash_value TEXT := ops.payload_hash(payload);
+  response_value JSONB;
 BEGIN
+  IF NOT ops.integration_enabled('google_sheets_enabled') THEN
+    RETURN ops.wrap_error('GOOGLE_SHEETS_DISABLED', 'Google Sheets desativado ou sem credencial valida.', FALSE);
+  END IF;
+
+  IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
+    RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
+  SELECT * INTO idempotency_row FROM ops.idempotency_inbox WHERE idempotency_key = payload ->> 'idempotency_key' FOR UPDATE;
+
+  IF idempotency_row.inbox_id IS NOT NULL THEN
+    IF idempotency_row.payload_hash <> payload_hash_value THEN
+      RETURN ops.wrap_error('IDEMPOTENCY_HASH_MISMATCH', 'Mesmo idempotency_key com payload diferente.', FALSE);
+    END IF;
+    IF idempotency_row.completed_at IS NOT NULL THEN
+      UPDATE ops.idempotency_inbox SET replay_count = replay_count + 1 WHERE inbox_id = idempotency_row.inbox_id;
+      RETURN idempotency_row.response_payload;
+    END IF;
+  ELSE
+    INSERT INTO ops.idempotency_inbox (source_system, external_event_id, tool_name, idempotency_key, payload_hash, request_envelope)
+    VALUES ('openclaw', COALESCE(payload ->> 'external_event_id', payload ->> 'request_id'), 'sincronizar_sheets', payload ->> 'idempotency_key', payload_hash_value, payload)
+    RETURNING * INTO idempotency_row;
+  END IF;
+
   INSERT INTO ops.sheet_sync_outbox (scope, payload, status)
   VALUES (
     payload ->> 'scope',
     payload,
-    CASE WHEN EXISTS (SELECT 1 FROM ops.runtime_flags WHERE flag_name = 'google_sheets_enabled' AND enabled) THEN 'queued' ELSE 'disabled' END
+    'queued'
   )
   RETURNING * INTO sync_row;
 
-  RETURN ops.wrap_success(
+  response_value := ops.wrap_success(
     jsonb_build_object(
       'sync_job_id', sync_row.sync_job_id,
       'integration_status', sync_row.status
     )
   );
+
+  UPDATE ops.idempotency_inbox
+  SET response_payload = response_value,
+      completed_at = NOW()
+  WHERE inbox_id = idempotency_row.inbox_id;
+
+  RETURN response_value;
 END
 $$;
 

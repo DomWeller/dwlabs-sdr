@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { Type } from "typebox";
 import { defineToolPlugin } from "openclaw/plugin-sdk/tool-plugin";
 
@@ -47,7 +47,6 @@ const baseToolInput = (payload: ReturnType<typeof Type.Object>) =>
 type PluginConfig = {
   baseUrl: string;
   bearerToken: string;
-  hmacSecret: string;
   timeoutMs?: number;
   allowlist?: string[];
 };
@@ -308,13 +307,11 @@ async function callWorkflow(
 
   const body = JSON.stringify(params);
   const correlationId = randomUUID();
-  const hmac = createHmac("sha256", config.hmacSecret).update(body).digest("hex");
   const response = await fetch(buildUrl(config.baseUrl, relativePath), {
     method: "POST",
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${config.bearerToken}`,
-      "x-sdr-signature": hmac,
       "x-idempotency-key": String(params.idempotency_key ?? correlationId),
       "x-correlation-id": correlationId,
       "x-agent-id": "comercial",
@@ -334,8 +331,7 @@ async function callWorkflow(
 const configSchema = Type.Object(
   {
     baseUrl: Type.String(),
-    bearerToken: Type.String(),
-    hmacSecret: Type.String(),
+    bearerToken: Type.String({ minLength: 43 }),
     timeoutMs: Type.Optional(Type.Integer({ minimum: 1000, maximum: 30000 })),
     allowlist: Type.Optional(Type.Array(Type.String()))
   },

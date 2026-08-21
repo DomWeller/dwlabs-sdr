@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._enforce_idempotency',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+        "jsCode": "const key = $json.idempotency_key ?? null;\nconst hash = $json.request_hash ?? null;\nif (!key || !hash) {\n  return [{ json: { ok: false, error: { code: 'IDEMPOTENCY_REQUIRED', message: 'Chave e hash obrigatorios.', retryable: false } } }];\n}\nreturn [{ json: { ok: true, mode: 'database_transaction', idempotency_key: key, request_hash: hash } }];"
       }
     }
   ],

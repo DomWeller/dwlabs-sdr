@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._meeting_policy',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+        "jsCode": "const startAt = new Date($json.starts_at ?? $json.start_at ?? Date.now());\nconst endAt = new Date($json.ends_at ?? $json.end_at ?? Date.now());\nconst weekday = startAt.getUTCDay();\nconst validWindow = weekday >= 1 && weekday <= 5 && startAt < endAt;\nreturn [{ json: { ok: validWindow, code: validWindow ? 'MEETING_POLICY_OK' : 'MEETING_POLICY_BLOCKED', requires_calendar: true } }];"
       }
     }
   ],

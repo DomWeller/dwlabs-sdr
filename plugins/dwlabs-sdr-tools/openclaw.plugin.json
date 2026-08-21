@@ -11,10 +11,8 @@
         "type": "string"
       },
       "bearerToken": {
-        "type": "string"
-      },
-      "hmacSecret": {
-        "type": "string"
+        "type": "string",
+        "minLength": 43
       },
       "timeoutMs": {
         "type": "integer"
@@ -28,8 +26,7 @@
     },
     "required": [
       "baseUrl",
-      "bearerToken",
-      "hmacSecret"
+      "bearerToken"
     ]
   },
   "activation": {

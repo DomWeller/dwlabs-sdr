@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._normalize_contact',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+        "jsCode": "const digits = String($json.phone ?? '').replace(/\\D+/g, '');\nconst normalized = digits ? (digits.startsWith('55') ? digits : `55${digits}`) : null;\nreturn [{ json: { ok: true, normalized_phone: normalized, normalized_email: $json.email ? String($json.email).trim().toLowerCase() : null } }];"
       }
     }
   ],
