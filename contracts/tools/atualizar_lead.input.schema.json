@@ -1,0 +1,122 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F-]{36}$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 8
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "whatsapp",
+        "instagram",
+        "site",
+        "test"
+      ]
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contact_name": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "company_name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conversation_id": {
+          "type": "string"
+        },
+        "lead_id": {
+          "type": "string"
+        },
+        "message_id": {
+          "type": "string"
+        },
+        "fragments": {
+          "type": "array",
+          "description": "Mensagens segmentadas ja recebidas",
+          "items": {
+            "type": "string"
+          }
+        },
+        "locale": {
+          "type": "string",
+          "default": "pt-BR"
+        }
+      },
+      "required": []
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lead_id": {
+          "type": "string"
+        },
+        "stage": {
+          "type": "string"
+        },
+        "needs": {
+          "type": "array",
+          "description": "Necessidades conhecidas",
+          "items": {
+            "type": "string"
+          }
+        },
+        "indicative_budget": {
+          "type": "string"
+        },
+        "urgency": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags do lead",
+          "items": {
+            "type": "string"
+          }
+        },
+        "owner": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lead_id"
+      ]
+    }
+  },
+  "required": [
+    "request_id",
+    "idempotency_key",
+    "channel",
+    "actor",
+    "context",
+    "payload"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "dwlabs-sdr",
+  "version": "1.0.0",
+  "description": "Projeto local versionável do SDR comercial DWLabs com OpenClaw + n8n",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf dist contracts generated-workflows openclaw-agent/generated plugins/dwlabs-sdr-tools/dist",
+    "generate": "tsx src/generators/generate-all.ts",
+    "build:root": "tsc -p tsconfig.json",
+    "build:plugin": "tsc -p plugins/dwlabs-sdr-tools/tsconfig.json",
+    "build": "npm run generate && npm run build:root && npm run build:plugin",
+    "validate": "tsx src/cli/validate-artifacts.ts && bash scripts/lint-shell.sh",
+    "test": "vitest run",
+    "check": "npm run build && npm run validate && npm run test",
+    "scan:secrets": "bash scripts/scan-secrets.sh"
+  },
+  "keywords": [],
+  "author": "Codex local implementation",
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "openclaw": "^2026.7.1-2",
+    "typebox": "^1.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

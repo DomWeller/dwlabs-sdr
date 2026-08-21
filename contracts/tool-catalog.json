@@ -1,0 +1,156 @@
+[
+  {
+    "tool_name": "buscar_servicos",
+    "workflow_name": "sdr.buscar_servicos",
+    "endpoint_path": "dwlabs-sdr/buscar-servicos",
+    "sql_function": "api.buscar_servicos",
+    "description": "Lista servicos ativos com resumo, modo de preco e upsells."
+  },
+  {
+    "tool_name": "buscar_servico",
+    "workflow_name": "sdr.buscar_servico",
+    "endpoint_path": "dwlabs-sdr/buscar-servico",
+    "sql_function": "api.buscar_servico",
+    "description": "Busca um servico por slug, id ou nome."
+  },
+  {
+    "tool_name": "buscar_precos",
+    "workflow_name": "sdr.buscar_precos",
+    "endpoint_path": "dwlabs-sdr/buscar-precos",
+    "sql_function": "api.buscar_precos",
+    "description": "Consulta faixa de precos sem inventar valores."
+  },
+  {
+    "tool_name": "buscar_portfolio",
+    "workflow_name": "sdr.buscar_portfolio",
+    "endpoint_path": "dwlabs-sdr/buscar-portfolio",
+    "sql_function": "api.buscar_portfolio",
+    "description": "Lista cases publicos resumidos."
+  },
+  {
+    "tool_name": "salvar_lead",
+    "workflow_name": "sdr.salvar_lead",
+    "endpoint_path": "dwlabs-sdr/salvar-lead",
+    "sql_function": "api.salvar_lead",
+    "description": "Cria ou atualiza contato, empresa, lead e conversa."
+  },
+  {
+    "tool_name": "atualizar_lead",
+    "workflow_name": "sdr.atualizar_lead",
+    "endpoint_path": "dwlabs-sdr/atualizar-lead",
+    "sql_function": "api.atualizar_lead",
+    "description": "Aplica patch allowlisted ao lead."
+  },
+  {
+    "tool_name": "buscar_lead",
+    "workflow_name": "sdr.buscar_lead",
+    "endpoint_path": "dwlabs-sdr/buscar-lead",
+    "sql_function": "api.buscar_lead",
+    "description": "Busca lead minimizado por id, telefone ou email."
+  },
+  {
+    "tool_name": "buscar_cliente",
+    "workflow_name": "sdr.buscar_cliente",
+    "endpoint_path": "dwlabs-sdr/buscar-cliente",
+    "sql_function": "api.buscar_cliente",
+    "description": "Retorna apenas o proprio contato vinculado a conversa."
+  },
+  {
+    "tool_name": "registrar_interacao",
+    "workflow_name": "sdr.registrar_interacao",
+    "endpoint_path": "dwlabs-sdr/registrar-interacao",
+    "sql_function": "api.registrar_interacao",
+    "description": "Persiste interacao redigida no historico."
+  },
+  {
+    "tool_name": "calcular_score",
+    "workflow_name": "sdr.calcular_score",
+    "endpoint_path": "dwlabs-sdr/calcular-score",
+    "sql_function": "api.calcular_score",
+    "description": "Calcula score deterministico e explicavel."
+  },
+  {
+    "tool_name": "verificar_agenda",
+    "workflow_name": "sdr.verificar_agenda",
+    "endpoint_path": "dwlabs-sdr/verificar-agenda",
+    "sql_function": "api.verificar_agenda",
+    "description": "Retorna slots reais respeitando politicas de agenda."
+  },
+  {
+    "tool_name": "agendar_reuniao",
+    "workflow_name": "sdr.agendar_reuniao",
+    "endpoint_path": "dwlabs-sdr/agendar-reuniao",
+    "sql_function": "api.agendar_reuniao",
+    "description": "Cria agendamento local e prepara integracao externa autorizada."
+  },
+  {
+    "tool_name": "reagendar_reuniao",
+    "workflow_name": "sdr.reagendar_reuniao",
+    "endpoint_path": "dwlabs-sdr/reagendar-reuniao",
+    "sql_function": "api.reagendar_reuniao",
+    "description": "Reagenda reuniao de forma idempotente."
+  },
+  {
+    "tool_name": "cancelar_reuniao",
+    "workflow_name": "sdr.cancelar_reuniao",
+    "endpoint_path": "dwlabs-sdr/cancelar-reuniao",
+    "sql_function": "api.cancelar_reuniao",
+    "description": "Cancela reuniao local e externa quando autorizado."
+  },
+  {
+    "tool_name": "criar_resumo",
+    "workflow_name": "sdr.criar_resumo",
+    "endpoint_path": "dwlabs-sdr/criar-resumo",
+    "sql_function": "api.criar_resumo",
+    "description": "Cria resumo operacional minimizado."
+  },
+  {
+    "tool_name": "notificar_vendedor",
+    "workflow_name": "sdr.notificar_vendedor",
+    "endpoint_path": "dwlabs-sdr/notificar-vendedor",
+    "sql_function": "api.notificar_vendedor",
+    "description": "Enfileira notificacao interna mockavel."
+  },
+  {
+    "tool_name": "agendar_followup",
+    "workflow_name": "sdr.agendar_followup",
+    "endpoint_path": "dwlabs-sdr/agendar-followup",
+    "sql_function": "api.agendar_followup",
+    "description": "Cria regra de follow-up elegivel e segura."
+  },
+  {
+    "tool_name": "cancelar_followup",
+    "workflow_name": "sdr.cancelar_followup",
+    "endpoint_path": "dwlabs-sdr/cancelar-followup",
+    "sql_function": "api.cancelar_followup",
+    "description": "Cancela follow-up por lead ou id."
+  },
+  {
+    "tool_name": "buscar_conhecimento",
+    "workflow_name": "sdr.buscar_conhecimento",
+    "endpoint_path": "dwlabs-sdr/buscar-conhecimento",
+    "sql_function": "api.buscar_conhecimento",
+    "description": "Consulta base de conhecimento via FTS."
+  },
+  {
+    "tool_name": "transcrever_audio",
+    "workflow_name": "sdr.transcrever_audio",
+    "endpoint_path": "dwlabs-sdr/transcrever-audio",
+    "sql_function": "api.transcrever_audio",
+    "description": "Transcreve audio via provider fail-safe."
+  },
+  {
+    "tool_name": "transferir_humano",
+    "workflow_name": "sdr.transferir_humano",
+    "endpoint_path": "dwlabs-sdr/transferir-humano",
+    "sql_function": "api.transferir_humano",
+    "description": "Abre handoff e bloqueia automacoes indevidas."
+  },
+  {
+    "tool_name": "sincronizar_sheets",
+    "workflow_name": "sdr.sincronizar_sheets",
+    "endpoint_path": "dwlabs-sdr/sincronizar-sheets",
+    "sql_function": "api.sincronizar_sheets",
+    "description": "Enfileira exportacao operacional para Google Sheets."
+  }
+]

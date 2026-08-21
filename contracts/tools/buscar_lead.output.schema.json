@@ -1,0 +1,102 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "data": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "lead": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "lead_id": {
+                  "type": "string"
+                },
+                "stage": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "integer"
+                },
+                "temperature_band": {
+                  "type": "string"
+                },
+                "needs": {
+                  "type": "array",
+                  "description": "Necessidades resumidas",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": []
+            }
+          },
+          "required": []
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "retryable": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "retryable"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "correlation_id": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F-]{36}$"
+        },
+        "redactions_applied": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "correlation_id",
+        "redactions_applied"
+      ]
+    }
+  },
+  "required": [
+    "ok",
+    "data",
+    "error",
+    "audit"
+  ]
+}
