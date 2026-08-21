@@ -1,0 +1,26 @@
+-- Execute manualmente com privilegios administrativos no cluster PostgreSQL.
+-- Substitua os placeholders pelo ambiente real; nunca versione credenciais.
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'owner_role') THEN
+    EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :'owner_role', :'owner_password');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_role') THEN
+    EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :'app_role', :'app_password');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'readonly_role') THEN
+    EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :'readonly_role', :'readonly_password');
+  END IF;
+END
+$$;
+
+GRANT CONNECT ON DATABASE dwlabs_sdr TO :"owner_role", :"app_role", :"readonly_role";
+GRANT USAGE ON SCHEMA core, rag, ops, audit, api TO :"app_role", :"readonly_role";
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core, rag, ops, audit TO :"app_role";
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA api, ops, audit TO :"app_role";
+GRANT SELECT ON ALL TABLES IN SCHEMA core, rag, ops, audit TO :"readonly_role";
+ALTER DEFAULT PRIVILEGES IN SCHEMA core, rag, ops, audit GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"app_role";
+ALTER DEFAULT PRIVILEGES IN SCHEMA core, rag, ops, audit GRANT SELECT ON TABLES TO :"readonly_role";

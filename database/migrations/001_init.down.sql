@@ -1,0 +1,69 @@
+BEGIN;
+
+DROP FUNCTION IF EXISTS api.sincronizar_sheets(JSONB);
+DROP FUNCTION IF EXISTS api.transferir_humano(JSONB);
+DROP FUNCTION IF EXISTS api.transcrever_audio(JSONB);
+DROP FUNCTION IF EXISTS api.buscar_conhecimento(JSONB);
+DROP FUNCTION IF EXISTS api.cancelar_followup(JSONB);
+DROP FUNCTION IF EXISTS api.agendar_followup(JSONB);
+DROP FUNCTION IF EXISTS api.notificar_vendedor(JSONB);
+DROP FUNCTION IF EXISTS api.criar_resumo(JSONB);
+DROP FUNCTION IF EXISTS api.cancelar_reuniao(JSONB);
+DROP FUNCTION IF EXISTS api.reagendar_reuniao(JSONB);
+DROP FUNCTION IF EXISTS api.agendar_reuniao(JSONB);
+DROP FUNCTION IF EXISTS api.verificar_agenda(JSONB);
+DROP FUNCTION IF EXISTS api.calcular_score(JSONB);
+DROP FUNCTION IF EXISTS api.registrar_interacao(JSONB);
+DROP FUNCTION IF EXISTS api.buscar_cliente(JSONB);
+DROP FUNCTION IF EXISTS api.buscar_lead(JSONB);
+DROP FUNCTION IF EXISTS api.atualizar_lead(JSONB);
+DROP FUNCTION IF EXISTS api.salvar_lead(JSONB);
+DROP FUNCTION IF EXISTS api.buscar_portfolio(JSONB);
+DROP FUNCTION IF EXISTS api.buscar_precos(JSONB);
+DROP FUNCTION IF EXISTS api.buscar_servico(JSONB);
+DROP FUNCTION IF EXISTS api.buscar_servicos(JSONB);
+
+DROP FUNCTION IF EXISTS audit.append_event(TEXT, UUID, JSONB);
+DROP FUNCTION IF EXISTS ops.calculate_score_from_payload(JSONB);
+DROP FUNCTION IF EXISTS ops.wrap_error(TEXT, TEXT, BOOLEAN);
+DROP FUNCTION IF EXISTS ops.wrap_success(JSONB, TEXT[]);
+DROP FUNCTION IF EXISTS ops.redact_text(TEXT);
+DROP FUNCTION IF EXISTS ops.temperature_band(INTEGER);
+DROP FUNCTION IF EXISTS ops.normalize_phone(TEXT);
+
+DROP TABLE IF EXISTS ops.metrics_events;
+DROP TABLE IF EXISTS audit.redacted_event_log;
+DROP TABLE IF EXISTS ops.sheet_sync_outbox;
+DROP TABLE IF EXISTS ops.notification_outbox;
+DROP TABLE IF EXISTS ops.runtime_flags;
+DROP TABLE IF EXISTS ops.idempotency_inbox;
+DROP TABLE IF EXISTS rag.knowledge_chunks;
+DROP TABLE IF EXISTS rag.knowledge_documents;
+DROP TABLE IF EXISTS core.handoffs;
+DROP TABLE IF EXISTS core.consents;
+DROP TABLE IF EXISTS core.followups;
+DROP TABLE IF EXISTS core.meetings;
+DROP TABLE IF EXISTS core.portfolio_items;
+DROP TABLE IF EXISTS core.qualification_questions;
+DROP TABLE IF EXISTS core.service_upsells;
+DROP TABLE IF EXISTS core.services;
+DROP TABLE IF EXISTS core.interactions;
+DROP TABLE IF EXISTS core.conversations;
+DROP TABLE IF EXISTS core.leads;
+DROP TABLE IF EXISTS core.contacts;
+DROP TABLE IF EXISTS core.companies;
+
+DROP TYPE IF EXISTS core.consent_status;
+DROP TYPE IF EXISTS core.handoff_status;
+DROP TYPE IF EXISTS core.followup_status;
+DROP TYPE IF EXISTS core.meeting_status;
+DROP TYPE IF EXISTS core.interaction_type;
+DROP TYPE IF EXISTS core.lead_stage;
+
+DROP SCHEMA IF EXISTS api;
+DROP SCHEMA IF EXISTS audit;
+DROP SCHEMA IF EXISTS ops;
+DROP SCHEMA IF EXISTS rag;
+DROP SCHEMA IF EXISTS core;
+
+COMMIT;
