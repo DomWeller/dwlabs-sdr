@@ -1,0 +1,131 @@
+{
+  "name": "sdr.notificar_vendedor",
+  "nodes": [
+    {
+      "id": "772c8616-d484-430e-93a0-b1fe855cb02d",
+      "name": "Receive Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dwlabs-sdr/notificar-vendedor",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "7230c31b-e09a-458d-a009-5c3f31e1c940",
+      "name": "Validate Headers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        300
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const headers = $json.headers ?? {};\nconst body = $json.body ?? {};\nif (!headers.authorization) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'UNAUTHORIZED', message: 'Bearer ausente', retryable: false } }));\n}\nif (!headers['x-idempotency-key'] && !body.idempotency_key) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'IDEMPOTENCY_REQUIRED', message: 'Chave de idempotencia obrigatoria', retryable: false } }));\n}\nreturn [{ json: { ...$json, tool_name: 'notificar_vendedor' } }];"
+      }
+    },
+    {
+      "id": "3a972de3-6941-4806-bfed-a41489b547fa",
+      "name": "Run SQL Function",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        860,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ `SELECT api.notificar_vendedor('${JSON.stringify($json.body).replace(/'/g, \"''\")}'::jsonb) AS result;` }}",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "={{ $env.N8N_WORKFLOW_PG_CREDENTIAL_ID || \"DWLABS_SDR_POSTGRES_ID\" }}",
+          "name": "={{ $env.N8N_WORKFLOW_PG_CREDENTIAL_NAME || \"DWLABS_SDR_POSTGRES\" }}"
+        }
+      }
+    },
+    {
+      "id": "d43c7859-6ea0-4b1c-8d8c-67c8b544ac25",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1160,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.result || $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Headers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Headers": {
+      "main": [
+        [
+          {
+            "node": "Run SQL Function",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run SQL Function": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "dwlabs-sdr"
+    },
+    {
+      "name": "public-tool"
+    }
+  ],
+  "active": false,
+  "versionId": "c4ba6b0f-0cd6-4440-b3cc-886fb2b8d8b6"
+}

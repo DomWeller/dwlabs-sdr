@@ -1,0 +1,64 @@
+{
+  "id": "dwlabs-sdr-tools",
+  "name": "DWLabs SDR Tools",
+  "description": "Ferramentas tipadas e allowlisted para o agente comercial publico da DWLabs.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": {
+        "type": "string"
+      },
+      "bearerToken": {
+        "type": "string"
+      },
+      "hmacSecret": {
+        "type": "string"
+      },
+      "timeoutMs": {
+        "type": "integer"
+      },
+      "allowlist": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "baseUrl",
+      "bearerToken",
+      "hmacSecret"
+    ]
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "buscar_servicos",
+      "buscar_servico",
+      "buscar_precos",
+      "buscar_portfolio",
+      "salvar_lead",
+      "atualizar_lead",
+      "buscar_lead",
+      "buscar_cliente",
+      "registrar_interacao",
+      "calcular_score",
+      "verificar_agenda",
+      "agendar_reuniao",
+      "reagendar_reuniao",
+      "cancelar_reuniao",
+      "criar_resumo",
+      "notificar_vendedor",
+      "agendar_followup",
+      "cancelar_followup",
+      "buscar_conhecimento",
+      "transcrever_audio",
+      "transferir_humano",
+      "sincronizar_sheets"
+    ]
+  }
+}

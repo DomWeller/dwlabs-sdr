@@ -1,0 +1,57 @@
+{
+  "name": "sdr._meeting_policy",
+  "nodes": [
+    {
+      "id": "69377b0e-5d2f-469f-b3f5-26344f4d3505",
+      "name": "Execute Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        260,
+        260
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "bc8a2d89-bd0e-4dbe-92e7-495e8b9466b9",
+      "name": "Subworkflow Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        260
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._meeting_policy',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Trigger": {
+      "main": [
+        [
+          {
+            "node": "Subworkflow Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "dwlabs-sdr"
+    },
+    {
+      "name": "subworkflow"
+    }
+  ],
+  "active": false,
+  "versionId": "67de3331-c7c2-4ec9-8340-c0c2576532de"
+}

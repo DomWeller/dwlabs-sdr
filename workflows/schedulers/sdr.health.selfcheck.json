@@ -1,0 +1,66 @@
+{
+  "name": "sdr.health.selfcheck",
+  "nodes": [
+    {
+      "id": "9be5a7ec-bba1-4723-9751-bc1b44f2c363",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        260
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "baa2350d-df60-4083-a33f-b99653e97e04",
+      "name": "Scheduler Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        260
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return [{\n  json: {\n    scheduler: 'sdr.health.selfcheck',\n    status: 'ready',\n    mode: 'safe',\n  },\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Scheduler Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "dwlabs-sdr"
+    },
+    {
+      "name": "scheduler"
+    }
+  ],
+  "active": false,
+  "versionId": "99ac65df-5eef-4d96-9134-9d2bfa047c28"
+}

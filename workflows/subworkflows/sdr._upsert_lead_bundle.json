@@ -1,0 +1,57 @@
+{
+  "name": "sdr._upsert_lead_bundle",
+  "nodes": [
+    {
+      "id": "8149cf48-600d-4306-8a00-f57b04b75e20",
+      "name": "Execute Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        260,
+        260
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "6deb42df-3347-4b23-8f65-f47a04fb1fd5",
+      "name": "Subworkflow Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        260
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return [{\n  json: {\n    ok: true,\n    subworkflow: 'sdr._upsert_lead_bundle',\n    note: 'Executar regras compartilhadas aqui apos importar no n8n.',\n  },\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Trigger": {
+      "main": [
+        [
+          {
+            "node": "Subworkflow Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "dwlabs-sdr"
+    },
+    {
+      "name": "subworkflow"
+    }
+  ],
+  "active": false,
+  "versionId": "0784e70e-5260-439e-9523-7257de2e16e7"
+}

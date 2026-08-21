@@ -1,0 +1,14 @@
+{
+  "timezone": "America/Sao_Paulo",
+  "business_hours": {
+    "days": [1, 2, 3, 4, 5],
+    "start": "09:00",
+    "end": "18:00"
+  },
+  "busy_slots": [
+    {
+      "starts_at": "2026-08-24T13:00:00-03:00",
+      "ends_at": "2026-08-24T14:00:00-03:00"
+    }
+  ]
+}
