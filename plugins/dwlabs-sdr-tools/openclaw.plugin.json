@@ -10,10 +10,6 @@
       "baseUrl": {
         "type": "string"
       },
-      "bearerToken": {
-        "type": "string",
-        "minLength": 43
-      },
       "timeoutMs": {
         "type": "integer"
       },
@@ -25,8 +21,7 @@
       }
     },
     "required": [
-      "baseUrl",
-      "bearerToken"
+      "baseUrl"
     ]
   },
   "activation": {

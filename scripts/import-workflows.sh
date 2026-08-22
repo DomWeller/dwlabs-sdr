@@ -17,8 +17,38 @@ trap 'cleanup_dir "${tmp_dir}"' EXIT
 manual_public_guard
 ensure_remote_layout
 
-node "${ROOT_DIR}/scripts/render-n8n-credentials.mjs" "${tmp_dir}/credentials" >/dev/null
-cp -R "${ROOT_DIR}/workflows" "${tmp_dir}/workflows"
+mkdir -p "${tmp_dir}/credentials"
+mkdir -p "${tmp_dir}/workflows"
+
+cat > "${tmp_dir}/credentials/${N8N_SDR_HEADER_AUTH_ID:-DWLABS_SDR_HEADER_AUTH}.json" <<JSON
+{
+  "id": "${N8N_SDR_HEADER_AUTH_ID:-DWLABS_SDR_HEADER_AUTH}",
+  "name": "${N8N_SDR_HEADER_AUTH_NAME:-DWLabs SDR Header Auth}",
+  "type": "httpHeaderAuth",
+  "data": {
+    "name": "Authorization",
+    "value": "Bearer ${N8N_SDR_SHARED_TOKEN}"
+  }
+}
+JSON
+
+cat > "${tmp_dir}/credentials/${N8N_WORKFLOW_PG_CREDENTIAL_ID:-DWLABS_SDR_POSTGRES_ID}.json" <<JSON
+{
+  "id": "${N8N_WORKFLOW_PG_CREDENTIAL_ID:-DWLABS_SDR_POSTGRES_ID}",
+  "name": "${N8N_WORKFLOW_PG_CREDENTIAL_NAME:-DWLabs SDR Postgres}",
+  "type": "postgres",
+  "data": {
+    "host": "${POSTGRES_HOST}",
+    "port": ${POSTGRES_PORT:-5432},
+    "database": "${POSTGRES_DB}",
+    "user": "${POSTGRES_USER}",
+    "password": "${POSTGRES_PASSWORD}",
+    "ssl": "disable"
+  }
+}
+JSON
+
+cp -R "${ROOT_DIR}/workflows/." "${tmp_dir}/workflows/"
 
 docker_exec "${N8N_CONTAINER}" sh -lc "rm -rf '${container_tmp}' && mkdir -p '${container_tmp}'"
 copy_into_container "${tmp_dir}/credentials" "${N8N_CONTAINER}" "${container_tmp}/credentials"
@@ -26,14 +56,14 @@ copy_into_container "${tmp_dir}/workflows/public-tools" "${N8N_CONTAINER}" "${co
 copy_into_container "${tmp_dir}/workflows/subworkflows" "${N8N_CONTAINER}" "${container_tmp}/subworkflows"
 copy_into_container "${tmp_dir}/workflows/schedulers" "${N8N_CONTAINER}" "${container_tmp}/schedulers"
 
-log "Importando credenciais transitórias do n8n"
+log "Importando credenciais n8n com IDs fixos"
 docker_exec "${N8N_CONTAINER}" n8n import:credentials \
   --separate \
   --input="${container_tmp}/credentials" \
   --projectId="${N8N_PROJECT_ID}" \
   --include=id,name,type,data >/dev/null
 
-log "Importando workflows SDR desativados"
+log "Importando workflows SDR"
 docker_exec "${N8N_CONTAINER}" n8n import:workflow \
   --separate \
   --input="${container_tmp}/public-tools" \
@@ -50,5 +80,21 @@ docker_exec "${N8N_CONTAINER}" n8n import:workflow \
   --projectId="${N8N_PROJECT_ID}" \
   --activeState=false >/dev/null
 
+while IFS= read -r workflow_file; do
+  workflow_id="$(json_string_from_file "${workflow_file}" "id")"
+  workflow_name="$(json_string_from_file "${workflow_file}" "name")"
+  if [[ -z "${workflow_id}" || -z "${workflow_name}" ]]; then
+    echo "Workflow sem id ou nome: ${workflow_file}" >&2
+    exit 1
+  fi
+  docker_exec "${N8N_CONTAINER}" n8n publish:workflow --id="${workflow_id}" >/dev/null
+done < <(workflow_json_files)
+
 docker_exec "${N8N_CONTAINER}" sh -lc "rm -rf '${container_tmp}'"
-log "Importacao concluida."
+
+log "Reiniciando n8n para consolidar importacao/publicacao"
+docker restart "${N8N_CONTAINER}" >/dev/null
+wait_for_container_health "${N8N_CONTAINER}" 120
+wait_for_n8n_ready 120
+
+log "Importacao, publicacao e restart do n8n concluidos."

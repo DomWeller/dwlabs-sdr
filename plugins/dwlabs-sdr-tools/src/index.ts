@@ -46,7 +46,6 @@ const baseToolInput = (payload: ReturnType<typeof Type.Object>) =>
 
 type PluginConfig = {
   baseUrl: string;
-  bearerToken: string;
   timeoutMs?: number;
   allowlist?: string[];
 };
@@ -303,6 +302,11 @@ async function callWorkflow(
   params: Record<string, unknown>,
   config: PluginConfig
 ): Promise<unknown> {
+  const bearerToken = process.env.SDR_N8N_TOKEN;
+  if (!bearerToken || bearerToken.length < 43) {
+    throw new Error("SDR_N8N_TOKEN ausente ou invalido no ambiente do OpenClaw.");
+  }
+
   assertAllowedPath(config, relativePath);
 
   const body = JSON.stringify(params);
@@ -311,7 +315,7 @@ async function callWorkflow(
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${config.bearerToken}`,
+      authorization: `Bearer ${bearerToken}`,
       "x-idempotency-key": String(params.idempotency_key ?? correlationId),
       "x-correlation-id": correlationId,
       "x-agent-id": "comercial",
@@ -331,7 +335,6 @@ async function callWorkflow(
 const configSchema = Type.Object(
   {
     baseUrl: Type.String(),
-    bearerToken: Type.String({ minLength: 43 }),
     timeoutMs: Type.Optional(Type.Integer({ minimum: 1000, maximum: 30000 })),
     allowlist: Type.Optional(Type.Array(Type.String()))
   },

@@ -71,4 +71,14 @@ describe("artifact safeguards", () => {
     expect(importScript).toContain("n8n import:credentials");
     expect(importScript).toContain("n8n import:workflow");
   });
+
+  it("configures OpenClaw via CLI instead of writing compose override or config files", () => {
+    const installScript = readFileSync(path.join(rootDir, "scripts/install-openclaw.sh"), "utf8");
+
+    expect(installScript).not.toContain("write_compose_override");
+    expect(installScript).not.toContain("fs.writeFileSync");
+    expect(installScript).toContain("openclaw config set plugins.entries.dwlabs-sdr-tools.config");
+    expect(installScript).toContain("openclaw config set \"agents.list[${agent_index}].tools.allow\"");
+    expect(installScript).toContain("openclaw agents set-identity");
+  });
 });

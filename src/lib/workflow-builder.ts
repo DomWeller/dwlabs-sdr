@@ -12,6 +12,7 @@ interface N8nNode {
 }
 
 interface N8nWorkflow {
+  id: string;
   name: string;
   nodes: N8nNode[];
   connections: Record<string, Record<string, Array<Array<{ node: string; type: string; index: number }>>>>;
@@ -295,6 +296,7 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
   });
 
   return {
+    id: stableUuid(`${tool.workflowName}:workflow`),
     name: tool.workflowName,
     nodes,
     connections: buildConnections(nodes.map((node) => node.name)),
@@ -336,6 +338,7 @@ export function buildSubworkflow(name: string): N8nWorkflow {
   nodes[1].id = stableUuid(`${name}:handler`);
 
   return {
+    id: stableUuid(`${name}:workflow`),
     name,
     nodes,
     connections: buildConnections(nodes.map((node) => node.name)),
@@ -387,6 +390,7 @@ export function buildScheduler(name: string): N8nWorkflow {
   nodes[1].id = stableUuid(`${name}:logic`);
 
   return {
+    id: stableUuid(`${name}:workflow`),
     name,
     nodes,
     connections: buildConnections(nodes.map((node) => node.name)),
