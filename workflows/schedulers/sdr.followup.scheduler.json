@@ -33,7 +33,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "const enabled = String($env.SDR_FOLLOWUP_DISPATCH_ENABLED || 'false') === 'true';\nif (!enabled) {\n  return [{ json: { ok: false, code: 'FOLLOWUP_DISABLED', action: 'skip', retryable: false } }];\n}\nreturn [{ json: { ok: true, scheduler: 'followup', action: 'dispatch_due_followups', mode: 'private_network_only' } }];"
+        "jsCode": "const enabled = false;\nif (!enabled) {\n  return [{ json: { ok: false, code: 'FOLLOWUP_DISABLED', action: 'skip', retryable: false } }];\n}\nreturn [{ json: { ok: true, scheduler: 'followup', action: 'dispatch_due_followups', mode: 'private_network_only' } }];"
       }
     }
   ],
@@ -54,14 +54,7 @@
     "executionOrder": "v1"
   },
   "pinData": {},
-  "tags": [
-    {
-      "name": "dwlabs-sdr"
-    },
-    {
-      "name": "scheduler"
-    }
-  ],
+  "tags": [],
   "active": false,
   "versionId": "c4e90885-b863-7cc6-3a01-0f1baa985460"
 }

@@ -45,14 +45,7 @@
     "executionOrder": "v1"
   },
   "pinData": {},
-  "tags": [
-    {
-      "name": "dwlabs-sdr"
-    },
-    {
-      "name": "subworkflow"
-    }
-  ],
+  "tags": [],
   "active": false,
   "versionId": "c2caea30-d081-0f1e-9d4e-b9d52999d8ee"
 }

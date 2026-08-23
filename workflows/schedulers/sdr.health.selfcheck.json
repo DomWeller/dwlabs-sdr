@@ -54,14 +54,7 @@
     "executionOrder": "v1"
   },
   "pinData": {},
-  "tags": [
-    {
-      "name": "dwlabs-sdr"
-    },
-    {
-      "name": "scheduler"
-    }
-  ],
+  "tags": [],
   "active": false,
   "versionId": "4df0dc91-3f3c-df6b-faa5-35524abe2595"
 }

@@ -4,6 +4,7 @@
   "nodes": [
     {
       "id": "bc492003-e307-448e-b373-34b2e4f59f72",
+      "webhookId": "cf9907e0-891e-362c-8852-aa5ae36d5fcc",
       "name": "Receive Request",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
@@ -29,8 +30,8 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "={{ $env.N8N_SDR_HEADER_AUTH_ID || \"DWLABS_SDR_HEADER_AUTH\" }}",
-          "name": "={{ $env.N8N_SDR_HEADER_AUTH_NAME || \"DWLabs SDR Header Auth\" }}"
+          "id": "DWLABS_SDR_HEADER_AUTH",
+          "name": "DWLabs SDR Header Auth"
         }
       }
     },
@@ -45,7 +46,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "const crypto = require('node:crypto');\nconst headers = Object.fromEntries(Object.entries($json.headers ?? {}).map(([key, value]) => [String(key).toLowerCase(), value]));\nconst body = $json.body ?? {};\nconst toolName = 'agendar_followup';\nconst allowedChannels = new Set(['whatsapp', 'instagram', 'site', 'test']);\nif (headers['x-agent-id'] !== 'comercial') {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'AGENT_FORBIDDEN', message: 'Agente invalido.', retryable: false } }));\n}\nif (!body || typeof body !== 'object' || Array.isArray(body)) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'INVALID_BODY', message: 'Envelope JSON obrigatorio.', retryable: false } }));\n}\nfor (const required of ['request_id', 'idempotency_key', 'channel', 'actor', 'context', 'payload']) {\n  if (!(required in body)) {\n    throw new Error(JSON.stringify({ ok: false, error: { code: 'ENVELOPE_INVALID', message: `Campo ausente: ${required}.`, retryable: false } }));\n  }\n}\nif (!allowedChannels.has(String(body.channel))) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'CHANNEL_FORBIDDEN', message: 'Canal nao allowlisted.', retryable: false } }));\n}\nif (headers['x-channel'] && String(headers['x-channel']) !== String(body.channel)) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'CHANNEL_MISMATCH', message: 'Header e envelope divergentes.', retryable: false } }));\n}\nconst actor = body.actor ?? {};\nconst context = body.context ?? {};\nconst payload = body.payload ?? {};\nconst normalized = {\n  request_id: String(body.request_id),\n  idempotency_key: String(body.idempotency_key),\n  channel: String(body.channel),\n  actor,\n  context,\n  payload,\n  tool_name: toolName,\n  agent_id: headers['x-agent-id'],\n  correlation_id: String(headers['x-correlation-id'] || body.request_id),\n  external_event_id: String(context.message_id || body.request_id),\n  request_hash: crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex'),\n  contact_name: actor.contact_name ?? payload.contact_name ?? null,\n  phone: actor.phone ?? payload.phone ?? null,\n  email: actor.email ?? payload.email ?? null,\n  company_name: actor.company_name ?? payload.company_name ?? null,\n  role: actor.role ?? null,\n  conversation_id: context.conversation_id ?? payload.conversation_id ?? null,\n  lead_id: context.lead_id ?? payload.lead_id ?? null,\n  message_id: context.message_id ?? payload.source_message_id ?? null,\n  fragments: context.fragments ?? null,\n  locale: context.locale ?? 'pt-BR',\n  ...payload\n};\nconst sqlPayloadBase64 = Buffer.from(JSON.stringify(normalized), 'utf8').toString('base64');\nreturn [{ json: { ...normalized, sql_payload_base64: sqlPayloadBase64, mutation_expected: true } }];"
+        "jsCode": "const headers = Object.fromEntries(Object.entries($json.headers ?? {}).map(([key, value]) => [String(key).toLowerCase(), value]));\nconst body = $json.body ?? {};\nconst toolName = 'agendar_followup';\nconst allowedChannels = new Set(['whatsapp', 'instagram', 'site', 'test']);\nif (headers['x-agent-id'] !== 'comercial') {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'AGENT_FORBIDDEN', message: 'Agente invalido.', retryable: false } }));\n}\nif (!body || typeof body !== 'object' || Array.isArray(body)) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'INVALID_BODY', message: 'Envelope JSON obrigatorio.', retryable: false } }));\n}\nfor (const required of ['request_id', 'idempotency_key', 'channel', 'actor', 'context', 'payload']) {\n  if (!(required in body)) {\n    throw new Error(JSON.stringify({ ok: false, error: { code: 'ENVELOPE_INVALID', message: `Campo ausente: ${required}.`, retryable: false } }));\n  }\n}\nif (!allowedChannels.has(String(body.channel))) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'CHANNEL_FORBIDDEN', message: 'Canal nao allowlisted.', retryable: false } }));\n}\nif (headers['x-channel'] && String(headers['x-channel']) !== String(body.channel)) {\n  throw new Error(JSON.stringify({ ok: false, error: { code: 'CHANNEL_MISMATCH', message: 'Header e envelope divergentes.', retryable: false } }));\n}\nconst actor = body.actor ?? {};\nconst context = body.context ?? {};\nconst payload = body.payload ?? {};\nconst sha256 = (value) => {\n  const bytes = new TextEncoder().encode(value);\n  const words = [];\n  for (let index = 0; index < bytes.length; index += 1) words[index >> 2] = (words[index >> 2] || 0) | (bytes[index] << (24 - (index % 4) * 8));\n  words[bytes.length >> 2] = (words[bytes.length >> 2] || 0) | (0x80 << (24 - (bytes.length % 4) * 8));\n  const bitLength = bytes.length * 8;\n  const lengthIndex = (((bytes.length + 8) >> 6) << 4) + 15;\n  words[lengthIndex - 1] = Math.floor(bitLength / 0x100000000);\n  words[lengthIndex] = bitLength >>> 0;\n  const constants = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  const hash = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const rotateRight = (number, bits) => (number >>> bits) | (number << (32 - bits));\n  for (let offset = 0; offset < words.length; offset += 16) {\n    const schedule = new Array(64);\n    for (let index = 0; index < 16; index += 1) schedule[index] = words[offset + index] || 0;\n    for (let index = 16; index < 64; index += 1) {\n      const s0 = rotateRight(schedule[index - 15], 7) ^ rotateRight(schedule[index - 15], 18) ^ (schedule[index - 15] >>> 3);\n      const s1 = rotateRight(schedule[index - 2], 17) ^ rotateRight(schedule[index - 2], 19) ^ (schedule[index - 2] >>> 10);\n      schedule[index] = (schedule[index - 16] + s0 + schedule[index - 7] + s1) | 0;\n    }\n    let [a, b, c, d, e, f, g, h] = hash;\n    for (let index = 0; index < 64; index += 1) {\n      const upperSigma1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);\n      const choice = (e & f) ^ (~e & g);\n      const temp1 = (h + upperSigma1 + choice + constants[index] + schedule[index]) | 0;\n      const upperSigma0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);\n      const majority = (a & b) ^ (a & c) ^ (b & c);\n      const temp2 = (upperSigma0 + majority) | 0;\n      h = g; g = f; f = e; e = (d + temp1) | 0; d = c; c = b; b = a; a = (temp1 + temp2) | 0;\n    }\n    hash[0] = (hash[0] + a) | 0; hash[1] = (hash[1] + b) | 0; hash[2] = (hash[2] + c) | 0; hash[3] = (hash[3] + d) | 0;\n    hash[4] = (hash[4] + e) | 0; hash[5] = (hash[5] + f) | 0; hash[6] = (hash[6] + g) | 0; hash[7] = (hash[7] + h) | 0;\n  }\n  return hash.map((part) => (part >>> 0).toString(16).padStart(8, '0')).join('');\n};\nconst requestHash = sha256(JSON.stringify(body));\nconst normalized = {\n  request_id: String(body.request_id),\n  idempotency_key: String(body.idempotency_key),\n  channel: String(body.channel),\n  actor,\n  context,\n  payload,\n  tool_name: toolName,\n  agent_id: headers['x-agent-id'],\n  correlation_id: String(headers['x-correlation-id'] || body.request_id),\n  external_event_id: String(context.message_id || body.request_id),\n  request_hash: requestHash,\n  contact_name: actor.contact_name ?? payload.contact_name ?? null,\n  phone: actor.phone ?? payload.phone ?? null,\n  email: actor.email ?? payload.email ?? null,\n  company_name: actor.company_name ?? payload.company_name ?? null,\n  role: actor.role ?? null,\n  conversation_id: context.conversation_id ?? payload.conversation_id ?? null,\n  lead_id: context.lead_id ?? payload.lead_id ?? null,\n  message_id: context.message_id ?? payload.source_message_id ?? null,\n  fragments: context.fragments ?? null,\n  locale: context.locale ?? 'pt-BR',\n  ...payload\n};\nconst sqlPayloadBase64 = Buffer.from(JSON.stringify(normalized), 'utf8').toString('base64');\nreturn [{ json: { ...normalized, sql_payload_base64: sqlPayloadBase64, mutation_expected: true } }];"
       }
     },
     {
@@ -66,8 +67,8 @@
       },
       "credentials": {
         "postgres": {
-          "id": "={{ $env.N8N_WORKFLOW_PG_CREDENTIAL_ID || \"DWLABS_SDR_POSTGRES_ID\" }}",
-          "name": "={{ $env.N8N_WORKFLOW_PG_CREDENTIAL_NAME || \"DWLABS_SDR_POSTGRES\" }}"
+          "id": "DWLABS_SDR_POSTGRES_ID",
+          "name": "DWLABS_SDR_POSTGRES"
         }
       }
     },
@@ -153,14 +154,7 @@
     "executionOrder": "v1"
   },
   "pinData": {},
-  "tags": [
-    {
-      "name": "dwlabs-sdr"
-    },
-    {
-      "name": "public-tool"
-    }
-  ],
+  "tags": [],
   "active": false,
-  "versionId": "2f384187-9698-9785-4241-7de6aa66e790"
+  "versionId": "b8f3337a-1073-5a97-6a6e-598e54ad5ec4"
 }
