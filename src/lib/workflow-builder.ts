@@ -3,6 +3,7 @@ import type { ToolDefinition } from "../contracts/tool-definitions.js";
 
 interface N8nNode {
   id: string;
+  webhookId?: string;
   name: string;
   type: string;
   typeVersion: number;
@@ -23,8 +24,15 @@ interface N8nWorkflow {
   versionId: string;
 }
 
-const envExpression = (envKey: string, fallback: string): string =>
-  `={{ $env.${envKey} || "${fallback}" }}`;
+const HEADER_AUTH_CREDENTIAL = {
+  id: "DWLABS_SDR_HEADER_AUTH",
+  name: "DWLabs SDR Header Auth"
+};
+
+const POSTGRES_CREDENTIAL = {
+  id: "DWLABS_SDR_POSTGRES_ID",
+  name: "DWLABS_SDR_POSTGRES"
+};
 
 const stableUuid = (seed: string): string => {
   const hex = createHash("sha1").update(seed).digest("hex").slice(0, 32);
@@ -60,8 +68,45 @@ const mutatingTools = new Set([
   "sincronizar_sheets"
 ]);
 
+const sandboxSafeSha256Code = [
+  "const sha256 = (value) => {",
+  "  const bytes = new TextEncoder().encode(value);",
+  "  const words = [];",
+  "  for (let index = 0; index < bytes.length; index += 1) words[index >> 2] = (words[index >> 2] || 0) | (bytes[index] << (24 - (index % 4) * 8));",
+  "  words[bytes.length >> 2] = (words[bytes.length >> 2] || 0) | (0x80 << (24 - (bytes.length % 4) * 8));",
+  "  const bitLength = bytes.length * 8;",
+  "  const lengthIndex = (((bytes.length + 8) >> 6) << 4) + 15;",
+  "  words[lengthIndex - 1] = Math.floor(bitLength / 0x100000000);",
+  "  words[lengthIndex] = bitLength >>> 0;",
+  "  const constants = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];",
+  "  const hash = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];",
+  "  const rotateRight = (number, bits) => (number >>> bits) | (number << (32 - bits));",
+  "  for (let offset = 0; offset < words.length; offset += 16) {",
+  "    const schedule = new Array(64);",
+  "    for (let index = 0; index < 16; index += 1) schedule[index] = words[offset + index] || 0;",
+  "    for (let index = 16; index < 64; index += 1) {",
+  "      const s0 = rotateRight(schedule[index - 15], 7) ^ rotateRight(schedule[index - 15], 18) ^ (schedule[index - 15] >>> 3);",
+  "      const s1 = rotateRight(schedule[index - 2], 17) ^ rotateRight(schedule[index - 2], 19) ^ (schedule[index - 2] >>> 10);",
+  "      schedule[index] = (schedule[index - 16] + s0 + schedule[index - 7] + s1) | 0;",
+  "    }",
+  "    let [a, b, c, d, e, f, g, h] = hash;",
+  "    for (let index = 0; index < 64; index += 1) {",
+  "      const upperSigma1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);",
+  "      const choice = (e & f) ^ (~e & g);",
+  "      const temp1 = (h + upperSigma1 + choice + constants[index] + schedule[index]) | 0;",
+  "      const upperSigma0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);",
+  "      const majority = (a & b) ^ (a & c) ^ (b & c);",
+  "      const temp2 = (upperSigma0 + majority) | 0;",
+  "      h = g; g = f; f = e; e = (d + temp1) | 0; d = c; c = b; b = a; a = (temp1 + temp2) | 0;",
+  "    }",
+  "    hash[0] = (hash[0] + a) | 0; hash[1] = (hash[1] + b) | 0; hash[2] = (hash[2] + c) | 0; hash[3] = (hash[3] + d) | 0;",
+  "    hash[4] = (hash[4] + e) | 0; hash[5] = (hash[5] + f) | 0; hash[6] = (hash[6] + g) | 0; hash[7] = (hash[7] + h) | 0;",
+  "  }",
+  "  return hash.map((part) => (part >>> 0).toString(16).padStart(8, '0')).join('');",
+  "};"
+];
+
 const prepareRequestCode = (tool: ToolDefinition): string => [
-  "const crypto = require('node:crypto');",
   "const headers = Object.fromEntries(Object.entries($json.headers ?? {}).map(([key, value]) => [String(key).toLowerCase(), value]));",
   "const body = $json.body ?? {};",
   "const toolName = '" + tool.toolName + "';",
@@ -86,6 +131,8 @@ const prepareRequestCode = (tool: ToolDefinition): string => [
   "const actor = body.actor ?? {};",
   "const context = body.context ?? {};",
   "const payload = body.payload ?? {};",
+  ...sandboxSafeSha256Code,
+  "const requestHash = sha256(JSON.stringify(body));",
   "const normalized = {",
   "  request_id: String(body.request_id),",
   "  idempotency_key: String(body.idempotency_key),",
@@ -97,7 +144,7 @@ const prepareRequestCode = (tool: ToolDefinition): string => [
   "  agent_id: headers['x-agent-id'],",
   "  correlation_id: String(headers['x-correlation-id'] || body.request_id),",
   "  external_event_id: String(context.message_id || body.request_id),",
-  "  request_hash: crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex'),",
+  "  request_hash: requestHash,",
   "  contact_name: actor.contact_name ?? payload.contact_name ?? null,",
   "  phone: actor.phone ?? payload.phone ?? null,",
   "  email: actor.email ?? payload.email ?? null,",
@@ -181,7 +228,7 @@ const subworkflowCodeByName: Record<string, string> = {
 
 const schedulerCodeByName: Record<string, string> = {
   "sdr.followup.scheduler": [
-    "const enabled = String($env.SDR_FOLLOWUP_DISPATCH_ENABLED || 'false') === 'true';",
+    "const enabled = false;",
     "if (!enabled) {",
     "  return [{ json: { ok: false, code: 'FOLLOWUP_DISABLED', action: 'skip', retryable: false } }];",
     "}",
@@ -191,7 +238,7 @@ const schedulerCodeByName: Record<string, string> = {
     "return [{ json: { ok: true, scheduler: 'healthcheck', checks: ['postgres_credential_bound', 'header_auth_bound', 'public_flag_blocked'], mode: 'readiness' } }];"
   ].join("\n"),
   "sdr.sheets.sync.scheduler": [
-    "const enabled = String($env.SDR_GOOGLE_SHEETS_ENABLED || 'false') === 'true';",
+    "const enabled = false;",
     "if (!enabled) {",
     "  return [{ json: { ok: false, code: 'GOOGLE_SHEETS_DISABLED', action: 'skip', retryable: false } }];",
     "}",
@@ -211,6 +258,7 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
   const nodes: N8nNode[] = [
     {
       id: "",
+      webhookId: stableUuid(`${tool.workflowName}:webhook`),
       name: webhookName,
       type: "n8n-nodes-base.webhook",
       typeVersion: 2.1,
@@ -228,8 +276,7 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
       },
       credentials: {
         httpHeaderAuth: {
-          id: envExpression("N8N_SDR_HEADER_AUTH_ID", "DWLABS_SDR_HEADER_AUTH"),
-          name: envExpression("N8N_SDR_HEADER_AUTH_NAME", "DWLabs SDR Header Auth")
+          ...HEADER_AUTH_CREDENTIAL
         }
       }
     },
@@ -259,8 +306,7 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
       },
       credentials: {
         postgres: {
-          id: envExpression("N8N_WORKFLOW_PG_CREDENTIAL_ID", "DWLABS_SDR_POSTGRES_ID"),
-          name: envExpression("N8N_WORKFLOW_PG_CREDENTIAL_NAME", "DWLABS_SDR_POSTGRES")
+          ...POSTGRES_CREDENTIAL
         }
       }
     },
@@ -304,9 +350,9 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
       executionOrder: "v1"
     },
     pinData: {},
-    tags: [{ name: "dwlabs-sdr" }, { name: "public-tool" }],
+    tags: [],
     active: false,
-    versionId: stableUuid(`${tool.workflowName}:version`)
+    versionId: stableUuid(`${tool.workflowName}:version:2`)
   };
 }
 
@@ -346,7 +392,7 @@ export function buildSubworkflow(name: string): N8nWorkflow {
       executionOrder: "v1"
     },
     pinData: {},
-    tags: [{ name: "dwlabs-sdr" }, { name: "subworkflow" }],
+    tags: [],
     active: false,
     versionId: stableUuid(`${name}:version`)
   };
@@ -398,7 +444,7 @@ export function buildScheduler(name: string): N8nWorkflow {
       executionOrder: "v1"
     },
     pinData: {},
-    tags: [{ name: "dwlabs-sdr" }, { name: "scheduler" }],
+    tags: [],
     active: false,
     versionId: stableUuid(`${name}:version`)
   };
