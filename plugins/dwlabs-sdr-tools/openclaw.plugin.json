@@ -19,10 +19,7 @@
           "type": "string"
         }
       }
-    },
-    "required": [
-      "baseUrl"
-    ]
+    }
   },
   "activation": {
     "onStartup": true

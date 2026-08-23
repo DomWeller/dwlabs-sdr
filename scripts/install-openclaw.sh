@@ -27,6 +27,35 @@ build_plugin_bundle() {
   printf '%s\n' "${bundle_path}"
 }
 
+installed_plugin_matches_source() {
+  local source_root="${ROOT_DIR}/plugins/dwlabs-sdr-tools"
+  local installed_root="${OPENCLAW_HOST_ROOT}/data/config/extensions/dwlabs-sdr-tools"
+
+  [[ -f "${source_root}/dist/index.js" ]] || return 1
+  [[ -f "${installed_root}/dist/index.js" ]] || return 1
+  [[ -f "${source_root}/openclaw.plugin.json" ]] || return 1
+  [[ -f "${installed_root}/openclaw.plugin.json" ]] || return 1
+  [[ -f "${source_root}/package.json" ]] || return 1
+  [[ -f "${installed_root}/package.json" ]] || return 1
+
+  cmp -s "${source_root}/dist/index.js" "${installed_root}/dist/index.js" &&
+    cmp -s "${source_root}/openclaw.plugin.json" "${installed_root}/openclaw.plugin.json" &&
+    cmp -s "${source_root}/package.json" "${installed_root}/package.json"
+}
+
+install_or_reuse_plugin() {
+  if installed_plugin_matches_source; then
+    log "Plugin OpenClaw ja corresponde ao build atual; reinstalacao ignorada."
+    return 0
+  fi
+
+  local bundle_path
+  bundle_path="$(build_plugin_bundle)"
+  docker cp "${bundle_path}" "${OPENCLAW_CONTAINER}:/tmp/dwlabs-sdr-tools.tgz"
+  docker_exec "${OPENCLAW_CONTAINER}" openclaw plugins install --force /tmp/dwlabs-sdr-tools.tgz >/dev/null
+  docker_exec "${OPENCLAW_CONTAINER}" rm -f /tmp/dwlabs-sdr-tools.tgz >/dev/null
+}
+
 patch_openclaw_env() {
   mkdir -p "${OPENCLAW_HOST_ROOT}"
   touch "${OPENCLAW_HOST_ENV_FILE}"
@@ -64,7 +93,7 @@ ensure_agent() {
 }
 
 read_agent_index() {
-  docker_exec "${OPENCLAW_CONTAINER}" node - "${SDR_AGENT_ID}" <<'NODE'
+  docker_exec_i "${OPENCLAW_CONTAINER}" node - "${SDR_AGENT_ID}" <<'NODE'
 const fs = require("node:fs");
 
 const agentId = process.argv[2];
@@ -99,11 +128,49 @@ configure_plugin() {
     openclaw config set plugins.entries.dwlabs-sdr-tools.config "${plugin_config_json}" --strict-json >/dev/null
 }
 
+merge_json_arrays() {
+  local current_json="$1"
+  local added_json="$2"
+
+  docker_exec_i "${OPENCLAW_CONTAINER}" node - "${current_json}" "${added_json}" <<'NODE'
+const current = JSON.parse(process.argv[2]);
+const added = JSON.parse(process.argv[3]);
+process.stdout.write(JSON.stringify([...new Set([...current, ...added])]))
+NODE
+}
+
+configure_global_tool_visibility() {
+  local sdr_tools_json="$1"
+  local global_allow_json
+  local merged_global_allow_json
+  local main_agent_index
+  local main_deny_json
+  local merged_main_deny_json
+
+  global_allow_json="$(docker_exec "${OPENCLAW_CONTAINER}" openclaw config get tools.allow --json 2>/dev/null || printf '[]')"
+  merged_global_allow_json="$(merge_json_arrays "${global_allow_json}" "${sdr_tools_json}")"
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set tools.allow "${merged_global_allow_json}" --strict-json >/dev/null
+
+  main_agent_index="$(read_agent_index main)"
+  main_deny_json="$(docker_exec "${OPENCLAW_CONTAINER}" openclaw config get "agents.list[${main_agent_index}].tools.deny" --json 2>/dev/null || printf '[]')"
+  merged_main_deny_json="$(merge_json_arrays "${main_deny_json}" "${sdr_tools_json}")"
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set "agents.list[${main_agent_index}].tools.deny" "${merged_main_deny_json}" --strict-json >/dev/null
+
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set plugins.entries.codex.config.codexDynamicToolsLoading '"direct"' --strict-json >/dev/null
+}
+
 configure_agent_tools() {
   local agent_index="$1"
   local allow_json="$2"
   local deny_json="$3"
 
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config unset "agents.list[${agent_index}].tools.alsoAllow" >/dev/null 2>&1 || true
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set "agents.list[${agent_index}].tools.profile" '"full"' --strict-json >/dev/null
   docker_exec "${OPENCLAW_CONTAINER}" \
     openclaw config set "agents.list[${agent_index}].tools.allow" "${allow_json}" --strict-json >/dev/null
   docker_exec "${OPENCLAW_CONTAINER}" \
@@ -119,12 +186,10 @@ set_agent_identity() {
 
 sdr_tools_json='["buscar_servicos","buscar_servico","buscar_precos","buscar_portfolio","salvar_lead","atualizar_lead","buscar_lead","buscar_cliente","registrar_interacao","calcular_score","verificar_agenda","agendar_reuniao","reagendar_reuniao","cancelar_reuniao","criar_resumo","notificar_vendedor","agendar_followup","cancelar_followup","buscar_conhecimento","transcrever_audio","transferir_humano","sincronizar_sheets"]'
 plugin_allowlist_json='["dwlabs-sdr/buscar-servicos","dwlabs-sdr/buscar-servico","dwlabs-sdr/buscar-precos","dwlabs-sdr/buscar-portfolio","dwlabs-sdr/salvar-lead","dwlabs-sdr/atualizar-lead","dwlabs-sdr/buscar-lead","dwlabs-sdr/buscar-cliente","dwlabs-sdr/registrar-interacao","dwlabs-sdr/calcular-score","dwlabs-sdr/verificar-agenda","dwlabs-sdr/agendar-reuniao","dwlabs-sdr/reagendar-reuniao","dwlabs-sdr/cancelar-reuniao","dwlabs-sdr/criar-resumo","dwlabs-sdr/notificar-vendedor","dwlabs-sdr/agendar-followup","dwlabs-sdr/cancelar-followup","dwlabs-sdr/buscar-conhecimento","dwlabs-sdr/transcrever-audio","dwlabs-sdr/transferir-humano","dwlabs-sdr/sincronizar-sheets"]'
-deny_tools_json='["group:runtime","group:fs","group:automation","http","gateway","config","plugins_admin","debug"]'
+deny_tools_json='["group:runtime","group:fs","group:automation","group:web","group:ui","group:messaging","group:memory","group:sessions","group:media","group:nodes","group:agents","http","gateway","config","plugins_admin","debug"]'
 plugin_config_json="$(printf '{"baseUrl":"%s","timeoutMs":%s,"allowlist":%s}' "${OPENCLAW_PLUGIN_BASE_URL}" "${OPENCLAW_PLUGIN_TIMEOUT_MS}" "${plugin_allowlist_json}")"
 
-bundle_path="$(build_plugin_bundle)"
-docker cp "${bundle_path}" "${OPENCLAW_CONTAINER}:/tmp/dwlabs-sdr-tools.tgz"
-docker_exec "${OPENCLAW_CONTAINER}" openclaw plugins install --force /tmp/dwlabs-sdr-tools.tgz >/dev/null
+install_or_reuse_plugin
 docker_exec "${OPENCLAW_CONTAINER}" openclaw plugins enable dwlabs-sdr-tools >/dev/null
 
 patch_openclaw_env
@@ -132,10 +197,10 @@ sync_workspace
 ensure_agent
 agent_index="$(read_agent_index)"
 configure_plugin "${plugin_config_json}"
+configure_global_tool_visibility "${sdr_tools_json}"
 configure_agent_tools "${agent_index}" "${sdr_tools_json}" "${deny_tools_json}"
 set_agent_identity
 
-docker_exec "${OPENCLAW_CONTAINER}" rm -f /tmp/dwlabs-sdr-tools.tgz >/dev/null
 (
   cd "${OPENCLAW_HOST_ROOT}"
   docker compose up -d --force-recreate openclaw-gateway >/dev/null
