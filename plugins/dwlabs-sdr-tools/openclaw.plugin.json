@@ -1,17 +1,99 @@
 {
   "id": "dwlabs-sdr-tools",
   "name": "DWLabs SDR Tools",
-  "description": "Ferramentas tipadas e allowlisted para o agente comercial publico da DWLabs.",
+  "description": "Ferramentas tipadas e allowlisted do SDR comercial da DWLabs.",
   "version": "0.1.0",
   "configSchema": {
     "type": "object",
-    "additionalProperties": false,
     "properties": {
       "baseUrl": {
         "type": "string"
       },
+      "bearerToken": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 43
+          },
+          {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "source",
+                  "provider",
+                  "id"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "env"
+                  },
+                  "provider": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "source",
+                  "provider",
+                  "id"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "file"
+                  },
+                  "provider": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "source",
+                  "provider",
+                  "id"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "exec"
+                  },
+                  "provider": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        ]
+      },
       "timeoutMs": {
-        "type": "integer"
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 30000
       },
       "allowlist": {
         "type": "array",
@@ -19,10 +101,21 @@
           "type": "string"
         }
       }
-    }
+    },
+    "additionalProperties": false
   },
   "activation": {
     "onStartup": true
+  },
+  "configContracts": {
+    "secretInputs": {
+      "paths": [
+        {
+          "path": "bearerToken",
+          "expected": "string"
+        }
+      ]
+    }
   },
   "contracts": {
     "tools": [

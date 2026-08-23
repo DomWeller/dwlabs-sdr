@@ -43,9 +43,29 @@ installed_plugin_matches_source() {
     cmp -s "${source_root}/package.json" "${installed_root}/package.json"
 }
 
+refresh_installed_plugin_files() {
+  local source_root="${ROOT_DIR}/plugins/dwlabs-sdr-tools"
+  local installed_root="${OPENCLAW_HOST_ROOT}/data/config/extensions/dwlabs-sdr-tools"
+
+  mkdir -p "${installed_root}/dist" "${installed_root}/src"
+  cp "${source_root}/dist/index.js" "${installed_root}/dist/index.js"
+  cp "${source_root}/src/index.ts" "${installed_root}/src/index.ts"
+  cp "${source_root}/openclaw.plugin.json" "${installed_root}/openclaw.plugin.json"
+  cp "${source_root}/package.json" "${installed_root}/package.json"
+  cp "${source_root}/README.md" "${installed_root}/README.md"
+  cp "${source_root}/tsconfig.json" "${installed_root}/tsconfig.json"
+}
+
 install_or_reuse_plugin() {
   if installed_plugin_matches_source; then
     log "Plugin OpenClaw ja corresponde ao build atual; reinstalacao ignorada."
+    return 0
+  fi
+
+  local installed_root="${OPENCLAW_HOST_ROOT}/data/config/extensions/dwlabs-sdr-tools"
+  if [[ -d "${installed_root}/node_modules/typebox" ]]; then
+    refresh_installed_plugin_files
+    log "Plugin OpenClaw atualizado no diretorio gerenciado, preservando dependencias instaladas."
     return 0
   fi
 
@@ -187,7 +207,7 @@ set_agent_identity() {
 sdr_tools_json='["buscar_servicos","buscar_servico","buscar_precos","buscar_portfolio","salvar_lead","atualizar_lead","buscar_lead","buscar_cliente","registrar_interacao","calcular_score","verificar_agenda","agendar_reuniao","reagendar_reuniao","cancelar_reuniao","criar_resumo","notificar_vendedor","agendar_followup","cancelar_followup","buscar_conhecimento","transcrever_audio","transferir_humano","sincronizar_sheets"]'
 plugin_allowlist_json='["dwlabs-sdr/buscar-servicos","dwlabs-sdr/buscar-servico","dwlabs-sdr/buscar-precos","dwlabs-sdr/buscar-portfolio","dwlabs-sdr/salvar-lead","dwlabs-sdr/atualizar-lead","dwlabs-sdr/buscar-lead","dwlabs-sdr/buscar-cliente","dwlabs-sdr/registrar-interacao","dwlabs-sdr/calcular-score","dwlabs-sdr/verificar-agenda","dwlabs-sdr/agendar-reuniao","dwlabs-sdr/reagendar-reuniao","dwlabs-sdr/cancelar-reuniao","dwlabs-sdr/criar-resumo","dwlabs-sdr/notificar-vendedor","dwlabs-sdr/agendar-followup","dwlabs-sdr/cancelar-followup","dwlabs-sdr/buscar-conhecimento","dwlabs-sdr/transcrever-audio","dwlabs-sdr/transferir-humano","dwlabs-sdr/sincronizar-sheets"]'
 deny_tools_json='["group:runtime","group:fs","group:automation","group:web","group:ui","group:messaging","group:memory","group:sessions","group:media","group:nodes","group:agents","http","gateway","config","plugins_admin","debug"]'
-plugin_config_json="$(printf '{"baseUrl":"%s","timeoutMs":%s,"allowlist":%s}' "${OPENCLAW_PLUGIN_BASE_URL}" "${OPENCLAW_PLUGIN_TIMEOUT_MS}" "${plugin_allowlist_json}")"
+plugin_config_json="$(printf '{"baseUrl":"%s","bearerToken":{"source":"env","provider":"default","id":"SDR_N8N_TOKEN"},"timeoutMs":%s,"allowlist":%s}' "${OPENCLAW_PLUGIN_BASE_URL}" "${OPENCLAW_PLUGIN_TIMEOUT_MS}" "${plugin_allowlist_json}")"
 
 install_or_reuse_plugin
 docker_exec "${OPENCLAW_CONTAINER}" openclaw plugins enable dwlabs-sdr-tools >/dev/null

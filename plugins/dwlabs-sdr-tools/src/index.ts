@@ -31,6 +31,33 @@ const contextSchema = Type.Object(
   { additionalProperties: false }
 );
 
+const secretRefSchema = Type.Union([
+  Type.Object(
+    {
+      source: Type.Literal("env"),
+      provider: Type.String({ pattern: "^[a-z][a-z0-9_-]{0,63}$" }),
+      id: Type.String({ pattern: "^[A-Z][A-Z0-9_]{0,127}$" })
+    },
+    { additionalProperties: false }
+  ),
+  Type.Object(
+    {
+      source: Type.Literal("file"),
+      provider: Type.String({ pattern: "^[a-z][a-z0-9_-]{0,63}$" }),
+      id: Type.String({ minLength: 1 })
+    },
+    { additionalProperties: false }
+  ),
+  Type.Object(
+    {
+      source: Type.Literal("exec"),
+      provider: Type.String({ pattern: "^[a-z][a-z0-9_-]{0,63}$" }),
+      id: Type.String({ minLength: 1 })
+    },
+    { additionalProperties: false }
+  )
+]);
+
 const baseToolInput = (payload: ReturnType<typeof Type.Object>) =>
   Type.Object(
     {
@@ -45,7 +72,8 @@ const baseToolInput = (payload: ReturnType<typeof Type.Object>) =>
   );
 
 type PluginConfig = {
-  baseUrl: string;
+  baseUrl?: string;
+  bearerToken?: string;
   timeoutMs?: number;
   allowlist?: string[];
 };
@@ -302,16 +330,21 @@ async function callWorkflow(
   params: Record<string, unknown>,
   config: PluginConfig
 ): Promise<unknown> {
-  const bearerToken = process.env.SDR_N8N_TOKEN;
+  const baseUrl = config.baseUrl;
+  if (!baseUrl) {
+    throw new Error("baseUrl ausente na configuracao do plugin.");
+  }
+
+  const bearerToken = config.bearerToken;
   if (!bearerToken || bearerToken.length < 43) {
-    throw new Error("SDR_N8N_TOKEN ausente ou invalido no ambiente do OpenClaw.");
+    throw new Error("Bearer token SecretRef ausente ou invalido na configuracao do plugin.");
   }
 
   assertAllowedPath(config, relativePath);
 
   const body = JSON.stringify(params);
   const correlationId = randomUUID();
-  const response = await fetch(buildUrl(config.baseUrl, relativePath), {
+  const response = await fetch(buildUrl(baseUrl, relativePath), {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -334,7 +367,8 @@ async function callWorkflow(
 
 const configSchema = Type.Object(
   {
-    baseUrl: Type.String(),
+    baseUrl: Type.Optional(Type.String()),
+    bearerToken: Type.Optional(Type.Union([Type.String({ minLength: 43 }), secretRefSchema])),
     timeoutMs: Type.Optional(Type.Integer({ minimum: 1000, maximum: 30000 })),
     allowlist: Type.Optional(Type.Array(Type.String()))
   },
