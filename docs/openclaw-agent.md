@@ -24,6 +24,7 @@ recebe zero ferramentas ou perde parte delas.
 2. o agente privado `main` tem `tools.deny` explicito das mesmas 22 ferramentas
 3. `agents.list[comercial].tools.profile = "full"`
 4. o agente `comercial` mantem allowlist exata das 22 ferramentas e denylist ampla de grupos
+5. `agents.list[comercial].skills = []`, evitando que skills globais entrem no prompt comercial
 5. `plugins.entries.codex.config.codexDynamicToolsLoading = "direct"`
 
 `profile: "full"` nao significa acesso amplo: a allowlist exata e a denylist aplicadas depois

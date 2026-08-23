@@ -195,6 +195,8 @@ configure_agent_tools() {
     openclaw config set "agents.list[${agent_index}].tools.allow" "${allow_json}" --strict-json >/dev/null
   docker_exec "${OPENCLAW_CONTAINER}" \
     openclaw config set "agents.list[${agent_index}].tools.deny" "${deny_json}" --strict-json >/dev/null
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set "agents.list[${agent_index}].skills" '[]' --strict-json >/dev/null
 }
 
 set_agent_identity() {

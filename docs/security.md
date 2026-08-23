@@ -60,6 +60,7 @@ Verificar com `openclaw status --all`.
 - `ops.redact_text` foi corrigida para a sintaxe POSIX do PostgreSQL e confirmou redacao de
   email e telefone em um teste remoto
 - um turno real de prompt injection foi recusado sem tool call e sem padrao de segredo
+- a allowlist oficial por agente foi fixada em `skills=[]`; o prompt comercial nao herda skills globais
 
 ## Ativacao publica
 

@@ -144,6 +144,7 @@ describe("artifact safeguards", () => {
     expect(installScript).toContain("openclaw config set \"agents.list[${main_agent_index}].tools.deny\"");
     expect(installScript).toContain("openclaw config set \"agents.list[${agent_index}].tools.profile\"");
     expect(installScript).toContain("openclaw config set \"agents.list[${agent_index}].tools.allow\"");
+    expect(installScript).toContain("openclaw config set \"agents.list[${agent_index}].skills\" '[]'");
     expect(installScript).toContain("codexDynamicToolsLoading");
     expect(installScript).toContain('"source":"env","provider":"default","id":"SDR_N8N_TOKEN"');
     expect(installScript).toContain('"group:web","group:ui","group:messaging","group:memory"');
