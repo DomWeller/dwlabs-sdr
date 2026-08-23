@@ -166,6 +166,9 @@ describe("artifact safeguards", () => {
     expect(migration).toContain("trg_sync_optout_suppression");
     expect(migration).toContain("INTERVAL '72 hours'");
     expect(migration).toContain("SECURITY DEFINER");
+    const lib = readFileSync(path.join(rootDir, "scripts/lib.sh"), "utf8");
+    expect(lib).toContain("REVOKE ALL ON FUNCTION ops.enqueue_due_followups");
+    expect(lib).toContain('FROM PUBLIC, "${POSTGRES_USER}", "${POSTGRES_ADMIN_USER}"');
   });
 
   it("keeps the dispatcher owner-only and argument-safe", () => {
