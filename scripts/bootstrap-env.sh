@@ -42,6 +42,8 @@ superuser="$(detect_postgres_superuser)"
 
 preserve_or_generate "N8N_SDR_SHARED_TOKEN"
 preserve_or_generate "POSTGRES_PASSWORD"
+preserve_or_generate "POSTGRES_ADMIN_PASSWORD"
+preserve_or_generate "POSTGRES_DISPATCHER_PASSWORD"
 load_env
 
 if ! env_file_has_real_value "N8N_PROJECT_ID"; then
@@ -56,6 +58,8 @@ fi
 upsert_env_value "POSTGRES_DB" "${POSTGRES_DB}"
 upsert_env_value "POSTGRES_USER" "${POSTGRES_USER}"
 upsert_env_value "POSTGRES_OWNER_USER" "${POSTGRES_OWNER_USER}"
+upsert_env_value "POSTGRES_ADMIN_USER" "${POSTGRES_ADMIN_USER}"
+upsert_env_value "POSTGRES_DISPATCHER_USER" "${POSTGRES_DISPATCHER_USER}"
 upsert_env_value "POSTGRES_HOST" "${POSTGRES_HOST}"
 upsert_env_value "POSTGRES_PORT" "${POSTGRES_PORT}"
 upsert_env_value "N8N_CONTAINER" "${N8N_CONTAINER}"

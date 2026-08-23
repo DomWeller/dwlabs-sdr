@@ -77,6 +77,8 @@ require_runtime_defaults() {
   : "${POSTGRES_DB:=dwlabs_sdr}"
   : "${POSTGRES_USER:=dwlabs_sdr_app}"
   : "${POSTGRES_OWNER_USER:=dwlabs_sdr_owner}"
+  : "${POSTGRES_ADMIN_USER:=dwlabs_sdr_admin}"
+  : "${POSTGRES_DISPATCHER_USER:=dwlabs_sdr_dispatcher}"
   : "${POSTGRES_HOST:=postgres}"
   : "${POSTGRES_PORT:=5432}"
   : "${N8N_BASE_URL:=http://127.0.0.1:5678}"
@@ -247,6 +249,24 @@ END
 SQL
 )
 
+  postgres_query "${POSTGRES_DB}" "${sql}" "${superuser}" >/dev/null
+}
+
+apply_specialized_database_grants() {
+  local superuser="${1:-$(detect_postgres_superuser)}"
+  local sql
+  sql=$(cat <<SQL
+GRANT CONNECT ON DATABASE "${POSTGRES_DB}" TO "${POSTGRES_ADMIN_USER}", "${POSTGRES_DISPATCHER_USER}";
+GRANT USAGE ON SCHEMA core, rag, ops, audit TO "${POSTGRES_ADMIN_USER}";
+GRANT SELECT ON ALL TABLES IN SCHEMA core, rag, ops, audit TO "${POSTGRES_ADMIN_USER}";
+GRANT UPDATE ON core.services, ops.runtime_flags TO "${POSTGRES_ADMIN_USER}";
+GRANT INSERT ON audit.admin_change_log TO "${POSTGRES_ADMIN_USER}";
+GRANT USAGE ON SCHEMA ops TO "${POSTGRES_DISPATCHER_USER}";
+REVOKE ALL ON ALL TABLES IN SCHEMA core, rag, ops, audit FROM "${POSTGRES_DISPATCHER_USER}";
+GRANT SELECT ON ops.runtime_flags TO "${POSTGRES_DISPATCHER_USER}";
+GRANT EXECUTE ON FUNCTION ops.enqueue_due_followups(TEXT,BOOLEAN), ops.claim_delivery(TEXT), ops.complete_delivery(UUID,TEXT), ops.fail_delivery(UUID,TEXT) TO "${POSTGRES_DISPATCHER_USER}";
+SQL
+)
   postgres_query "${POSTGRES_DB}" "${sql}" "${superuser}" >/dev/null
 }
 

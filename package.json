@@ -13,7 +13,10 @@
     "validate": "tsx src/cli/validate-artifacts.ts && bash scripts/lint-shell.sh",
     "test": "vitest run",
     "check": "npm run build && npm run validate && npm run test",
-    "scan:secrets": "bash scripts/scan-secrets.sh"
+    "scan:secrets": "bash scripts/scan-secrets.sh",
+    "admin": "node apps/admin/server.mjs",
+    "dispatcher": "node apps/dispatcher/worker.mjs",
+    "admin:hash-password": "node scripts/hash-admin-password.mjs"
   },
   "keywords": [],
   "author": "Codex local implementation",
@@ -21,6 +24,7 @@
   "dependencies": {
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "pg": "^8.16.3",
     "typebox": "^1.3.3"
   },
   "devDependencies": {

@@ -156,4 +156,45 @@ describe("artifact safeguards", () => {
       expected: "string"
     });
   });
+
+  it("ships atomic rate limiting, outbox claims and deterministic follow-up stops", () => {
+    const migration = readFileSync(path.join(rootDir, "database/migrations/002_operations_hardening.up.sql"), "utf8");
+    expect(migration).toContain("ops.check_rate_limit");
+    expect(migration).toContain("FOR UPDATE SKIP LOCKED");
+    expect(migration).toContain("RATE_LIMITED");
+    expect(migration).toContain("trg_stop_followups_on_inbound");
+    expect(migration).toContain("trg_sync_optout_suppression");
+    expect(migration).toContain("INTERVAL '72 hours'");
+    expect(migration).toContain("SECURITY DEFINER");
+  });
+
+  it("keeps the dispatcher owner-only and argument-safe", () => {
+    const dispatcher = readFileSync(path.join(rootDir, "apps/dispatcher/worker.mjs"), "utf8");
+    expect(dispatcher).toContain("TARGET_NOT_ALLOWLISTED");
+    expect(dispatcher).toContain('spawn("openclaw", [');
+    expect(dispatcher).not.toContain("exec(");
+    expect(dispatcher).not.toContain("shell: true");
+  });
+
+  it("keeps the admin panel tailnet-only with session and CSRF protection", () => {
+    const admin = readFileSync(path.join(rootDir, "apps/admin/server.mjs"), "utf8");
+    const compose = readFileSync(path.join(rootDir, "deploy/docker-compose.sdr.yml"), "utf8");
+    expect(admin).toContain("SameSite=Strict");
+    expect(admin).toContain("CSRF");
+    expect(admin).toContain("timingSafeEqual");
+    expect(compose).toContain('127.0.0.1:5680:3000');
+    expect(compose).toContain("no-new-privileges:true");
+    expect(compose).toContain("POSTGRES_ADMIN_USER");
+    expect(compose).toContain("POSTGRES_DISPATCHER_USER");
+  });
+
+  it("requires an explicit owner-only confirmation before changing WhatsApp routing", () => {
+    const start = readFileSync(path.join(rootDir, "scripts/pilot-start.sh"), "utf8");
+    const stop = readFileSync(path.join(rootDir, "scripts/pilot-stop.sh"), "utf8");
+    expect(start).toContain("CONFIRM_PILOT_OWNER_ONLY");
+    expect(start).toContain("SDR_PUBLIC_FLAG");
+    expect(start).toContain("groupPolicy");
+    expect(stop).toContain("openclaw agents unbind");
+    expect(stop).toContain("status='cancelled'");
+  });
 });

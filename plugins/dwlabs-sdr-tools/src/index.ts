@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Type } from "typebox";
 import { defineToolPlugin } from "openclaw/plugin-sdk/tool-plugin";
 
@@ -84,6 +84,35 @@ type ToolSpec = {
   description: string;
   parameters: ReturnType<typeof baseToolInput>;
 };
+
+const rateWindows = new Map<string, { startedAt: number; count: number }>();
+const RATE_WINDOW_MS = 60_000;
+const RATE_LIMIT = 12;
+
+function enforceRateLimit(relativePath: string, params: Record<string, unknown>): void {
+  const actor = (params.actor ?? {}) as Record<string, unknown>;
+  const context = (params.context ?? {}) as Record<string, unknown>;
+  const subject = String(actor.phone ?? actor.email ?? context.conversation_id ?? "anonymous");
+  const key = createHash("sha256").update(`${relativePath}:${subject}`).digest("hex");
+  const now = Date.now();
+  const current = rateWindows.get(key);
+
+  if (!current || now - current.startedAt >= RATE_WINDOW_MS) {
+    rateWindows.set(key, { startedAt: now, count: 1 });
+  } else {
+    current.count += 1;
+    if (current.count > RATE_LIMIT) {
+      const retryAfter = Math.max(1, Math.ceil((current.startedAt + RATE_WINDOW_MS - now) / 1000));
+      throw new Error(`RATE_LIMITED:${retryAfter}`);
+    }
+  }
+
+  if (rateWindows.size > 10_000) {
+    for (const [entryKey, entry] of rateWindows) {
+      if (now - entry.startedAt >= RATE_WINDOW_MS) rateWindows.delete(entryKey);
+    }
+  }
+}
 
 const defaultAllowlist = [
   "dwlabs-sdr/buscar-servicos",
@@ -341,6 +370,7 @@ async function callWorkflow(
   }
 
   assertAllowedPath(config, relativePath);
+  enforceRateLimit(relativePath, params);
 
   const body = JSON.stringify(params);
   const correlationId = randomUUID();

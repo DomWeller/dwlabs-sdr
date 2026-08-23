@@ -6,8 +6,11 @@ require_remote_runtime
 require_env POSTGRES_OWNER_USER
 require_env POSTGRES_DB
 
-sql_file="${ROOT_DIR}/database/migrations/001_init.up.sql"
 superuser="$(detect_postgres_superuser)"
-postgres_query_file_as_owner "${POSTGRES_DB}" "${POSTGRES_OWNER_USER}" "${sql_file}" "${superuser}"
+while IFS= read -r sql_file; do
+  postgres_query_file_as_owner "${POSTGRES_DB}" "${POSTGRES_OWNER_USER}" "${sql_file}" "${superuser}"
+  log "Migration aplicada: $(basename "${sql_file}")"
+done < <(find "${ROOT_DIR}/database/migrations" -maxdepth 1 -type f -name '*.up.sql' | sort)
 apply_database_grants "${superuser}"
-log "Migration aplicada em ${POSTGRES_DB}"
+apply_specialized_database_grants "${superuser}"
+log "Migrations aplicadas em ${POSTGRES_DB}"
