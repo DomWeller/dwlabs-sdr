@@ -1,0 +1,42 @@
+services:
+  admin:
+    build:
+      context: ..
+      dockerfile: Dockerfile.runtime
+    restart: unless-stopped
+    command: ["node", "apps/admin/server.mjs"]
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_ADMIN_USER}:${POSTGRES_ADMIN_PASSWORD}@n8n-postgres:5432/${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5680:3000"
+    networks: [n8n]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+  dispatcher:
+    build:
+      context: ..
+      dockerfile: Dockerfile.dispatcher
+    restart: unless-stopped
+    command: ["node", "apps/dispatcher/worker.mjs"]
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_DISPATCHER_USER}:${POSTGRES_DISPATCHER_PASSWORD}@n8n-postgres:5432/${POSTGRES_DB}
+      OPENCLAW_GATEWAY_URL: ws://openclaw-openclaw-gateway-1:18789
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+    networks: [n8n, openclaw]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+networks:
+  n8n:
+    external: true
+    name: n8n_n8n_internal
+  openclaw:
+    external: true
+    name: openclaw_default
