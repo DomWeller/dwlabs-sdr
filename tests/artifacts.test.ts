@@ -199,5 +199,8 @@ describe("artifact safeguards", () => {
     expect(start).toContain("groupPolicy");
     expect(stop).toContain("openclaw agents unbind");
     expect(stop).toContain("status='cancelled'");
+    const bootstrap = readFileSync(path.join(rootDir, "scripts/bootstrap-env.sh"), "utf8");
+    expect(bootstrap).toContain("discover_whatsapp_owner");
+    expect(bootstrap).toContain('upsert_env_value "SDR_PUBLIC_FLAG" "false"');
   });
 });

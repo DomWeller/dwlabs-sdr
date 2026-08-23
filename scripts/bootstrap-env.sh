@@ -38,6 +38,19 @@ discover_n8n_project_id() {
   return 1
 }
 
+discover_whatsapp_owner() {
+  docker_exec "${OPENCLAW_CONTAINER}" openclaw config get channels.whatsapp --json 2>/dev/null |
+    docker_exec_i "${OPENCLAW_CONTAINER}" node -e '
+      let raw="";
+      process.stdin.on("data", chunk => raw += chunk);
+      process.stdin.on("end", () => {
+        const config = JSON.parse(raw);
+        if (config.dmPolicy !== "allowlist" || !Array.isArray(config.allowFrom) || config.allowFrom.length !== 1) process.exit(1);
+        process.stdout.write(String(config.allowFrom[0]).replace(/\D+/g, ""));
+      });
+    '
+}
+
 superuser="$(detect_postgres_superuser)"
 
 preserve_or_generate "N8N_SDR_SHARED_TOKEN"
@@ -55,6 +68,12 @@ if ! env_file_has_real_value "N8N_PROJECT_ID"; then
   upsert_env_value "N8N_PROJECT_ID" "${project_id}"
 fi
 
+if ! env_file_has_real_value "SDR_OWNER_ALLOWLIST"; then
+  owner_phone="$(discover_whatsapp_owner)"
+  [[ -n "${owner_phone}" ]] || { echo "Nao foi possivel descobrir uma allowlist WhatsApp owner-only." >&2; exit 1; }
+  upsert_env_value "SDR_OWNER_ALLOWLIST" "${owner_phone}"
+fi
+
 upsert_env_value "POSTGRES_DB" "${POSTGRES_DB}"
 upsert_env_value "POSTGRES_USER" "${POSTGRES_USER}"
 upsert_env_value "POSTGRES_OWNER_USER" "${POSTGRES_OWNER_USER}"
@@ -70,6 +89,9 @@ upsert_env_value "OPENCLAW_HOST_ROOT" "${OPENCLAW_HOST_ROOT}"
 upsert_env_value "SDR_N8N_TOKEN" "${N8N_SDR_SHARED_TOKEN}"
 upsert_env_value "OPENCLAW_PLUGIN_BASE_URL" "${OPENCLAW_PLUGIN_BASE_URL}"
 upsert_env_value "OPENCLAW_PLUGIN_TIMEOUT_MS" "${OPENCLAW_PLUGIN_TIMEOUT_MS}"
+upsert_env_value "SDR_PUBLIC_FLAG" "false"
+upsert_env_value "SDR_ALLOWLIST_MODE" "true"
+upsert_env_value "SDR_BIND_WHATSAPP" "false"
 
 chmod 600 "${ENV_FILE}"
 log "Bootstrap de ambiente concluido com segredos preservados/gerados sem exposicao em log."
