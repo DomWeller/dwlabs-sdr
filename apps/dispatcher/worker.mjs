@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { hostname } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { Pool } from "pg";
@@ -7,6 +8,8 @@ const pool = new Pool({ connectionString: required("DATABASE_URL", 10), max: 2 }
 const pilotPhone = digits(required("SDR_OWNER_ALLOWLIST", 10));
 const workerId = `dispatcher:${hostname()}`;
 const pollMs = Number(process.env.DISPATCHER_POLL_MS ?? 10_000);
+const healthPort = Number(process.env.DISPATCHER_HEALTH_PORT ?? 3001);
+const health = { lastTickAt: null, lastErrorCode: null };
 
 function required(name, minLength) {
   const value = process.env[name];
@@ -51,7 +54,19 @@ async function tick() {
 }
 
 process.on("SIGTERM", async () => { await pool.end(); process.exit(0); });
+createServer((req, res) => {
+  if (req.url !== "/healthz") { res.writeHead(404); return res.end(); }
+  res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+  res.end(JSON.stringify({ ok: true, ...health }));
+}).listen(healthPort, "127.0.0.1");
 for (;;) {
-  try { await tick(); } catch (error) { console.error(JSON.stringify({ event: "dispatcher_error", code: String(error?.message ?? "UNKNOWN").slice(0, 80) })); }
+  try {
+    await tick();
+    health.lastTickAt = new Date().toISOString();
+    health.lastErrorCode = null;
+  } catch (error) {
+    health.lastErrorCode = String(error?.message ?? "UNKNOWN").slice(0, 80);
+    console.error(JSON.stringify({ event: "dispatcher_error", code: health.lastErrorCode }));
+  }
   await delay(pollMs);
 }
