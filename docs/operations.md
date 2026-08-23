@@ -12,6 +12,29 @@
 
 O gate 7 e o ultimo, nunca uma etapa automatica do deploy.
 
+## Runtime administrativo
+
+```bash
+bash scripts/deploy-runtime.sh
+bash scripts/publish-admin-tailnet.sh
+```
+
+O deploy gera segredos ausentes sem imprimi-los. A senha inicial fica em
+`.admin-initial-password` com modo `600`; deve ser lida pelo proprietario, trocada e removida depois.
+O painel escuta em `127.0.0.1:5680` e o Tailscale Serve usa HTTPS `:8445`.
+
+## Piloto owner-only
+
+```bash
+bash scripts/pilot-status.sh
+CONFIRM_PILOT_OWNER_ONLY=YES bash scripts/pilot-start.sh
+bash scripts/pilot-stop.sh
+```
+
+`pilot-start` e o unico comando que altera o binding. `deploy.sh`, `deploy-runtime.sh` e migrations
+nao ligam o WhatsApp comercial. `pilot-stop` desliga automacoes, cancela a fila ainda nao enviada e
+remove o binding comercial.
+
 ## Estado operacional de referencia
 
 ```text

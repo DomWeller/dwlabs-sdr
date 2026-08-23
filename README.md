@@ -12,6 +12,8 @@ Implementacao local versionavel do SDR comercial da DWLabs sobre `OpenClaw 2026.
 - scripts idempotentes de backup, deploy, rollback, migrate, seed, import/export, healthcheck e teste
 - dispatchers fail-safe para Calendar, audio, Sheets e notificacao quando a credencial estiver ausente
 - observabilidade redigida, 31 testes locais e suite remota controlada das 22 ferramentas
+- painel administrativo interno, outbox de entrega e dispatcher owner-only
+- rate limiting, retencao LGPD, opt-out e scripts reversiveis de piloto
 
 ## Fluxo recomendado
 
@@ -40,3 +42,15 @@ npm run scan:secrets
 - agente comercial nao recebe shell, filesystem generico, admin, HTTP generico nem dados de terceiros
 - o banco valida o escopo do ator/contexto antes de ler ou alterar dados de um lead
 - Google Calendar, Google Sheets e audio real ficam desativados ate configuracao manual externa
+
+## Painel e piloto
+
+- painel local: `127.0.0.1:5680`, publicado apenas por Tailscale Serve
+- runtime: `bash scripts/deploy-runtime.sh`
+- status seguro: `bash scripts/pilot-status.sh`
+- inicio exige `CONFIRM_PILOT_OWNER_ONLY=YES bash scripts/pilot-start.sh`
+- rollback imediato: `bash scripts/pilot-stop.sh`
+
+O primeiro piloto aceita exatamente um numero e mantem `SDR_PUBLIC_FLAG=false`. Clientes reais
+exigem adaptador da WhatsApp Business Platform/API oficial; a sessao WhatsApp Web atual nao e o
+canal de producao publico.

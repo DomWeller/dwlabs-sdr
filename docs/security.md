@@ -11,6 +11,10 @@
 - `ops.is_lead_in_actor_scope` exige correspondencia com o lead, conversa, telefone ou email do ator
 - logs redigidos via `ops.redact_text`
 - audit trail em `audit.redacted_event_log`
+- limite local no plugin e janela atomica disponivel em `ops.check_rate_limit`
+- roles separadas para n8n, painel e dispatcher
+- painel em loopback/Tailscale com scrypt, cookie seguro e CSRF
+- dispatcher sem shell, com destino owner-only e outbox idempotente
 
 ## Auditoria de seguranca do OpenClaw
 
@@ -65,3 +69,7 @@ Verificar com `openclaw status --all`.
 ## Ativacao publica
 
 Nao executar agora. A mudanca para publico exige flag manual `SDR_PUBLIC_FLAG=true` e gate separado.
+
+O piloto interno continua com `SDR_PUBLIC_FLAG=false`. O script de inicio exige allowlist com um
+unico numero, grupos desativados, backup e healthcheck; o script de parada desliga filas antes de
+remover o binding do agente comercial.

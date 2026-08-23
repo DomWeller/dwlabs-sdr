@@ -3,11 +3,11 @@
 ## Cobertura local automatizada
 
 ```text
-2 arquivos de teste, 31 testes, 0 falhas
+2 arquivos de teste, 35 testes, 0 falhas
 ```
 
 - 20 cenarios comerciais obrigatorios em `tests/scenarios.test.ts`
-- 11 salvaguardas de artefatos e configuracao em `tests/artifacts.test.ts`
+- 15 salvaguardas de artefatos e configuracao em `tests/artifacts.test.ts`
   (inclui comparar o SHA-256 puro em JavaScript gerado nos Code nodes com o SHA-256 oficial
   do Node)
 - validacao estrutural em `src/cli/validate-artifacts.ts`
@@ -81,6 +81,9 @@ cleanup=ok
 
 Os 7 casos de integracao externa validam o fail-safe desativado. Os caminhos de sucesso de
 Calendar, notificacao, audio e Sheets continuam pendentes de credenciais e autorizacao.
+
+Antes do piloto, testar tambem migration `002` em banco temporario, concorrencia do claim,
+destino fora da allowlist, tres retries, opt-out, nova entrada, painel/CSRF e `pilot-stop`.
 
 ## Testes reais de politica do agente
 
