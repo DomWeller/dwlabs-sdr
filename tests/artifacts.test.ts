@@ -99,6 +99,23 @@ describe("artifact safeguards", () => {
     expect(migration).toContain("CALENDAR_DISABLED");
     expect(migration).toContain("NOTIFICATION_DISABLED");
     expect(migration).toContain("GOOGLE_SHEETS_DISABLED");
+    expect(migration).toContain("[email-redigido]");
+    expect(migration).not.toContain("\\b[A-Za-z0-9._%+-]+@");
+  });
+
+  it("enforces actor scope and keeps real integration tests self-cleaning", () => {
+    const migration = readFileSync(path.join(rootDir, "database/migrations/001_init.up.sql"), "utf8");
+    const integrationScript = readFileSync(path.join(rootDir, "scripts/integration-test.sh"), "utf8");
+    const remoteTest = readFileSync(path.join(rootDir, "tests/remote-integration.mjs"), "utf8");
+
+    expect(migration).toContain("ops.is_lead_in_actor_scope");
+    expect(migration).toContain("LEAD_SCOPE_FORBIDDEN");
+    expect(migration).toContain("CUSTOMER_SCOPE_FORBIDDEN");
+    expect(integrationScript).toContain("trap cleanup_test_data EXIT INT TERM");
+    expect(integrationScript).toContain("DELETE FROM core.contacts");
+    expect(integrationScript).toContain("DELETE FROM ops.idempotency_inbox");
+    expect(remoteTest).toContain("a suite precisa exercitar exatamente as 22 ferramentas");
+    expect(remoteTest).not.toContain("process.env.N8N_SDR_SHARED_TOKEN");
   });
 
   it("uses portable secret scanning fallback and real import commands", () => {
@@ -115,6 +132,10 @@ describe("artifact safeguards", () => {
 
   it("configures OpenClaw via CLI instead of writing compose override or config files", () => {
     const installScript = readFileSync(path.join(rootDir, "scripts/install-openclaw.sh"), "utf8");
+    const pluginSource = readFileSync(path.join(rootDir, "plugins/dwlabs-sdr-tools/src/index.ts"), "utf8");
+    const pluginManifest = JSON.parse(
+      readFileSync(path.join(rootDir, "plugins/dwlabs-sdr-tools/openclaw.plugin.json"), "utf8")
+    ) as { configContracts?: { secretInputs?: { paths?: Array<{ path: string }> } } };
 
     expect(installScript).not.toContain("write_compose_override");
     expect(installScript).not.toContain("fs.writeFileSync");
@@ -124,7 +145,14 @@ describe("artifact safeguards", () => {
     expect(installScript).toContain("openclaw config set \"agents.list[${agent_index}].tools.profile\"");
     expect(installScript).toContain("openclaw config set \"agents.list[${agent_index}].tools.allow\"");
     expect(installScript).toContain("codexDynamicToolsLoading");
+    expect(installScript).toContain('"source":"env","provider":"default","id":"SDR_N8N_TOKEN"');
     expect(installScript).toContain('"group:web","group:ui","group:messaging","group:memory"');
     expect(installScript).toContain("openclaw agents set-identity");
+    expect(pluginSource).not.toContain("process.env.SDR_N8N_TOKEN");
+    expect(pluginSource).toContain("config.bearerToken");
+    expect(pluginManifest.configContracts?.secretInputs?.paths).toContainEqual({
+      path: "bearerToken",
+      expected: "string"
+    });
   });
 });

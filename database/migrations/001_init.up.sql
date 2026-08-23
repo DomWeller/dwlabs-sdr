@@ -318,8 +318,13 @@ LANGUAGE SQL
 IMMUTABLE
 AS $$
   SELECT regexp_replace(
-    regexp_replace(COALESCE(input, ''), '\b55\d{10,13}\b', '[telefone-redigido]', 'g'),
-    '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b',
+    regexp_replace(
+      COALESCE(input, ''),
+      '(^|[^0-9])55[0-9]{10,13}([^0-9]|$)',
+      '\1[telefone-redigido]\2',
+      'g'
+    ),
+    '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',
     '[email-redigido]',
     'g'
   )
@@ -377,6 +382,39 @@ LANGUAGE SQL
 IMMUTABLE
 AS $$
   SELECT encode(digest(COALESCE(input::TEXT, ''), 'sha256'), 'hex')
+$$;
+
+CREATE OR REPLACE FUNCTION ops.is_lead_in_actor_scope(payload JSONB, target_lead_id UUID)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+AS $$
+  SELECT target_lead_id IS NOT NULL
+    AND (
+      NULLIF(payload #>> '{context,lead_id}', '') = target_lead_id::TEXT
+      OR EXISTS (
+        SELECT 1
+        FROM core.conversations conv
+        WHERE conv.lead_id = target_lead_id
+          AND conv.conversation_id::TEXT = NULLIF(payload #>> '{context,conversation_id}', '')
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM core.leads scoped_lead
+        JOIN core.contacts scoped_contact ON scoped_contact.contact_id = scoped_lead.contact_id
+        WHERE scoped_lead.lead_id = target_lead_id
+          AND (
+            (
+              NULLIF(payload #>> '{actor,phone}', '') IS NOT NULL
+              AND scoped_contact.normalized_phone = ops.normalize_phone(payload #>> '{actor,phone}')
+            )
+            OR (
+              NULLIF(payload #>> '{actor,email}', '') IS NOT NULL
+              AND scoped_contact.email = lower(payload #>> '{actor,email}')
+            )
+          )
+      )
+    )
 $$;
 
 CREATE OR REPLACE FUNCTION ops.calculate_score_from_payload(payload JSONB)
@@ -778,6 +816,10 @@ BEGIN
     RETURN ops.wrap_error('LEAD_CONTEXT_MISMATCH', 'Contexto do lead divergente.', FALSE);
   END IF;
 
+  IF NOT ops.is_lead_in_actor_scope(payload, (payload ->> 'lead_id')::UUID) THEN
+    RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
+  END IF;
+
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
 
   SELECT *
@@ -849,12 +891,39 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  target_lead_id UUID;
   response_value JSONB;
 BEGIN
   IF NULLIF(payload ->> 'lead_id', '') IS NULL
      AND NULLIF(payload ->> 'phone', '') IS NULL
      AND NULLIF(payload ->> 'email', '') IS NULL THEN
     RETURN ops.wrap_error('LEAD_LOOKUP_REQUIRED', 'Informe lead_id, phone ou email.', FALSE);
+  END IF;
+
+  SELECT l.lead_id
+  INTO target_lead_id
+  FROM core.leads l
+  JOIN core.contacts c ON c.contact_id = l.contact_id
+  WHERE (
+      NULLIF(payload ->> 'lead_id', '') IS NOT NULL
+      AND l.lead_id::TEXT = payload ->> 'lead_id'
+    )
+    OR (
+      NULLIF(payload ->> 'phone', '') IS NOT NULL
+      AND c.normalized_phone = ops.normalize_phone(payload ->> 'phone')
+    )
+    OR (
+      NULLIF(payload ->> 'email', '') IS NOT NULL
+      AND c.email = lower(NULLIF(payload ->> 'email', ''))
+    )
+  LIMIT 1;
+
+  IF target_lead_id IS NULL THEN
+    RETURN ops.wrap_error('LEAD_NOT_FOUND', 'Lead nao encontrado.', FALSE);
+  END IF;
+
+  IF NOT ops.is_lead_in_actor_scope(payload, target_lead_id) THEN
+    RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
   END IF;
 
   SELECT ops.wrap_success(
@@ -871,22 +940,9 @@ BEGIN
   )
   INTO response_value
   FROM core.leads l
-  JOIN core.contacts c ON c.contact_id = l.contact_id
-  WHERE (
-      NULLIF(payload ->> 'lead_id', '') IS NOT NULL
-      AND l.lead_id = (payload ->> 'lead_id')::UUID
-    )
-    OR (
-      NULLIF(payload ->> 'phone', '') IS NOT NULL
-      AND c.normalized_phone = ops.normalize_phone(payload ->> 'phone')
-    )
-    OR (
-      NULLIF(payload ->> 'email', '') IS NOT NULL
-      AND c.email = lower(NULLIF(payload ->> 'email', ''))
-    )
-  LIMIT 1;
+  WHERE l.lead_id = target_lead_id;
 
-  RETURN COALESCE(response_value, ops.wrap_error('LEAD_NOT_FOUND', 'Lead nao encontrado.', FALSE));
+  RETURN response_value;
 END
 $$;
 
@@ -895,10 +951,29 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  target_contact_id UUID;
+  target_lead_id UUID;
   response_value JSONB;
 BEGIN
   IF NULLIF(payload ->> 'contact_ref', '') IS NULL THEN
     RETURN ops.wrap_error('CONTACT_REF_REQUIRED', 'contact_ref obrigatorio.', FALSE);
+  END IF;
+
+  SELECT c.contact_id, l.lead_id
+  INTO target_contact_id, target_lead_id
+  FROM core.contacts c
+  LEFT JOIN core.leads l ON l.contact_id = c.contact_id
+  WHERE c.contact_id::TEXT = payload ->> 'contact_ref'
+     OR c.normalized_phone = ops.normalize_phone(payload ->> 'contact_ref')
+     OR c.email = lower(payload ->> 'contact_ref')
+  LIMIT 1;
+
+  IF target_contact_id IS NULL OR target_lead_id IS NULL THEN
+    RETURN ops.wrap_error('CUSTOMER_NOT_FOUND', 'Cliente nao encontrado.', FALSE);
+  END IF;
+
+  IF NOT ops.is_lead_in_actor_scope(payload, target_lead_id) THEN
+    RETURN ops.wrap_error('CUSTOMER_SCOPE_FORBIDDEN', 'Cliente fora do contexto autorizado.', FALSE);
   END IF;
 
   SELECT ops.wrap_success(
@@ -916,12 +991,9 @@ BEGIN
   FROM core.contacts c
   LEFT JOIN core.companies comp ON comp.company_id = c.company_id
   LEFT JOIN core.leads l ON l.contact_id = c.contact_id
-  WHERE c.contact_id::TEXT = payload ->> 'contact_ref'
-     OR c.normalized_phone = ops.normalize_phone(payload ->> 'contact_ref')
-     OR c.email = lower(payload ->> 'contact_ref')
-  LIMIT 1;
+  WHERE c.contact_id = target_contact_id;
 
-  RETURN COALESCE(response_value, ops.wrap_error('CUSTOMER_NOT_FOUND', 'Cliente nao encontrado.', FALSE));
+  RETURN response_value;
 END
 $$;
 
@@ -932,6 +1004,7 @@ AS $$
 DECLARE
   idempotency_row ops.idempotency_inbox%ROWTYPE;
   interaction_row core.interactions%ROWTYPE;
+  target_lead_id UUID;
   redacted_content TEXT := ops.redact_text(payload ->> 'content');
   payload_hash_value TEXT := ops.payload_hash(payload);
   response_value JSONB;
@@ -942,6 +1015,21 @@ BEGIN
 
   IF NULLIF(payload ->> 'lead_id', '') IS NULL AND NULLIF(payload ->> 'conversation_id', '') IS NULL THEN
     RETURN ops.wrap_error('LEAD_OR_CONVERSATION_REQUIRED', 'lead_id ou conversation_id obrigatorio.', FALSE);
+  END IF;
+
+  SELECT COALESCE(
+    NULLIF(payload ->> 'lead_id', '')::UUID,
+    (
+      SELECT conv.lead_id
+      FROM core.conversations conv
+      WHERE conv.conversation_id::TEXT = NULLIF(payload ->> 'conversation_id', '')
+      LIMIT 1
+    )
+  )
+  INTO target_lead_id;
+
+  IF NOT ops.is_lead_in_actor_scope(payload, target_lead_id) THEN
+    RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
@@ -991,7 +1079,7 @@ BEGIN
     content_hash
   )
   VALUES (
-    NULLIF(payload ->> 'lead_id', '')::UUID,
+    target_lead_id,
     NULLIF(payload ->> 'conversation_id', '')::UUID,
     (payload ->> 'interaction_type')::core.interaction_type,
     payload ->> 'source_message_id',
@@ -1032,6 +1120,10 @@ BEGIN
   score_result := ops.calculate_score_from_payload(score_payload);
 
   IF lead_uuid IS NOT NULL THEN
+    IF NOT ops.is_lead_in_actor_scope(payload, lead_uuid) THEN
+      RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
+    END IF;
+
     UPDATE core.leads
     SET score = (score_result ->> 'score')::INTEGER,
         temperature_band = score_result ->> 'temperature_band',
@@ -1084,6 +1176,10 @@ BEGIN
 
   IF COALESCE((payload ->> 'authorized')::BOOLEAN, FALSE) = FALSE THEN
     RETURN ops.wrap_error('MEETING_AUTH_REQUIRED', 'Autorizacao explicita do lead e obrigatoria.', FALSE);
+  END IF;
+
+  IF NOT ops.is_lead_in_actor_scope(payload, (payload ->> 'lead_id')::UUID) THEN
+    RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
@@ -1177,6 +1273,7 @@ AS $$
 DECLARE
   idempotency_row ops.idempotency_inbox%ROWTYPE;
   payload_hash_value TEXT := ops.payload_hash(payload);
+  target_lead_id UUID;
   updated_meeting_id UUID;
   response_value JSONB;
 BEGIN
@@ -1186,6 +1283,14 @@ BEGIN
 
   IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
     RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  SELECT lead_id INTO target_lead_id
+  FROM core.meetings
+  WHERE meeting_id::TEXT = payload ->> 'meeting_id';
+
+  IF NOT ops.is_lead_in_actor_scope(payload, target_lead_id) THEN
+    RETURN ops.wrap_error('MEETING_SCOPE_FORBIDDEN', 'Reuniao fora do contexto autorizado.', FALSE);
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
@@ -1237,6 +1342,7 @@ AS $$
 DECLARE
   idempotency_row ops.idempotency_inbox%ROWTYPE;
   payload_hash_value TEXT := ops.payload_hash(payload);
+  target_lead_id UUID;
   updated_meeting_id UUID;
   response_value JSONB;
 BEGIN
@@ -1246,6 +1352,14 @@ BEGIN
 
   IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
     RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  SELECT lead_id INTO target_lead_id
+  FROM core.meetings
+  WHERE meeting_id::TEXT = payload ->> 'meeting_id';
+
+  IF NOT ops.is_lead_in_actor_scope(payload, target_lead_id) THEN
+    RETURN ops.wrap_error('MEETING_SCOPE_FORBIDDEN', 'Reuniao fora do contexto autorizado.', FALSE);
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
@@ -1294,10 +1408,26 @@ RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  target_lead_id UUID;
   response_value JSONB;
 BEGIN
   IF NULLIF(payload ->> 'lead_id', '') IS NULL AND NULLIF(payload ->> 'conversation_id', '') IS NULL THEN
     RETURN ops.wrap_error('SUMMARY_CONTEXT_REQUIRED', 'lead_id ou conversation_id obrigatorio.', FALSE);
+  END IF;
+
+  SELECT COALESCE(
+    NULLIF(payload ->> 'lead_id', '')::UUID,
+    (
+      SELECT conv.lead_id
+      FROM core.conversations conv
+      WHERE conv.conversation_id::TEXT = NULLIF(payload ->> 'conversation_id', '')
+      LIMIT 1
+    )
+  )
+  INTO target_lead_id;
+
+  IF NOT ops.is_lead_in_actor_scope(payload, target_lead_id) THEN
+    RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
   END IF;
 
   SELECT ops.wrap_success(
@@ -1324,16 +1454,7 @@ BEGIN
   )
   INTO response_value
   FROM core.leads l
-  LEFT JOIN core.conversations conv ON conv.lead_id = l.lead_id
-  WHERE (
-      NULLIF(payload ->> 'lead_id', '') IS NOT NULL
-      AND l.lead_id = (payload ->> 'lead_id')::UUID
-    )
-    OR (
-      NULLIF(payload ->> 'conversation_id', '') IS NOT NULL
-      AND conv.conversation_id = (payload ->> 'conversation_id')::UUID
-    )
-  LIMIT 1;
+  WHERE l.lead_id = target_lead_id;
 
   RETURN COALESCE(response_value, ops.wrap_error('LEAD_NOT_FOUND', 'Lead nao encontrado.', FALSE));
 END
@@ -1355,6 +1476,11 @@ BEGIN
 
   IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
     RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  IF payload ->> 'lead_id' IS NOT NULL
+     AND NOT ops.is_lead_in_actor_scope(payload, (payload ->> 'lead_id')::UUID) THEN
+    RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
@@ -1412,6 +1538,10 @@ BEGIN
     RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
   END IF;
 
+  IF NOT ops.is_lead_in_actor_scope(payload, (payload ->> 'lead_id')::UUID) THEN
+    RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
+  END IF;
+
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
   SELECT * INTO idempotency_row FROM ops.idempotency_inbox WHERE idempotency_key = payload ->> 'idempotency_key' FOR UPDATE;
 
@@ -1458,6 +1588,7 @@ AS $$
 DECLARE
   idempotency_row ops.idempotency_inbox%ROWTYPE;
   payload_hash_value TEXT := ops.payload_hash(payload);
+  target_lead_id UUID;
   cancelled_followup_id UUID;
   response_value JSONB;
 BEGIN
@@ -1467,6 +1598,21 @@ BEGIN
 
   IF NULLIF(payload ->> 'followup_id', '') IS NULL AND NULLIF(payload ->> 'lead_id', '') IS NULL THEN
     RETURN ops.wrap_error('FOLLOWUP_TARGET_REQUIRED', 'followup_id ou lead_id obrigatorio.', FALSE);
+  END IF;
+
+  SELECT COALESCE(
+    NULLIF(payload ->> 'lead_id', '')::UUID,
+    (
+      SELECT followup.lead_id
+      FROM core.followups followup
+      WHERE followup.followup_id::TEXT = NULLIF(payload ->> 'followup_id', '')
+      LIMIT 1
+    )
+  )
+  INTO target_lead_id;
+
+  IF NOT ops.is_lead_in_actor_scope(payload, target_lead_id) THEN
+    RETURN ops.wrap_error('FOLLOWUP_SCOPE_FORBIDDEN', 'Follow-up fora do contexto autorizado.', FALSE);
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));
@@ -1570,6 +1716,10 @@ DECLARE
 BEGIN
   IF NULLIF(payload ->> 'idempotency_key', '') IS NULL THEN
     RETURN ops.wrap_error('IDEMPOTENCY_REQUIRED', 'Chave de idempotencia obrigatoria.', FALSE);
+  END IF;
+
+  IF NOT ops.is_lead_in_actor_scope(payload, (payload ->> 'lead_id')::UUID) THEN
+    RETURN ops.wrap_error('LEAD_SCOPE_FORBIDDEN', 'Lead fora do contexto autorizado.', FALSE);
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext(payload ->> 'idempotency_key'));

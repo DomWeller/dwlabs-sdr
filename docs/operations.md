@@ -40,6 +40,8 @@ SDR_PUBLIC_FLAG=false  SDR_BIND_WHATSAPP=false
 - `scripts/install-openclaw.sh` — idempotente; pula reinstalacao se o plugin for identico
 - `scripts/bootstrap-env.sh` — recarrega o `.env` depois de preservar/gerar valores
 - `scripts/healthcheck.sh`
+- `scripts/integration-test.sh` — exercita as 22 ferramentas com dois contatos sinteticos e
+  remove os dados do teste mesmo quando a execucao falha
 - `scripts/test.sh`
 
 ## Rotina rapida
@@ -63,6 +65,8 @@ NOTIFICATION_DISABLED   FOLLOWUP_DISABLED
 ```text
 backups/20260822-231016
 backups/20260822-232758
+backups/20260823-144409
+backups/20260823-144518
 /home/dominique/backups/dwlabs-sdr/20260821-171043
 ```
 

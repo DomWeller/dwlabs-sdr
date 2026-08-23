@@ -8,6 +8,7 @@
 - `Webhook Header Auth` nativo do n8n com credencial `httpHeaderAuth` fixa/importavel
 - token compartilhado de 256 bits apenas em rede privada/Tailscale
 - sem shell, filesystem generico, admin, HTTP generico ou dados de terceiros para o agente comercial
+- `ops.is_lead_in_actor_scope` exige correspondencia com o lead, conversa, telefone ou email do ator
 - logs redigidos via `ops.redact_text`
 - audit trail em `audit.redacted_event_log`
 
@@ -17,21 +18,30 @@
 docker exec openclaw-openclaw-gateway-1 openclaw security audit --deep
 ```
 
-Resultado atual conhecido: `1 critical`, `1 warn`, `1 info`.
+Resultado confirmado depois da migracao para SecretRef: `0 critical`, `1 warn`, `1 info`.
 
-### critical `plugins.code_safety`
+### critical `plugins.code_safety` — resolvido
 
-O auditor classifica `dwlabs-sdr-tools` como possivel `env-harvesting` porque o mesmo codigo
-le `process.env.SDR_N8N_TOKEN` e faz uma chamada de rede com `fetch`.
+O auditor classificava `dwlabs-sdr-tools` como possivel `env-harvesting` porque o mesmo codigo
+lia `process.env.SDR_N8N_TOKEN` e fazia uma chamada de rede com `fetch`.
 
-Revisao do codigo: le somente `SDR_N8N_TOKEN`, usa o valor apenas como Bearer token, chama
-somente a `baseUrl` configurada e paths da allowlist, nao aceita endpoint arbitrario do usuario
-final e nao registra o token em log.
+O plugin chamava somente a `baseUrl` configurada e paths da allowlist, nao aceitava endpoint
+arbitrario do usuario final e nao registrava o token em log, mas a leitura direta do ambiente
+ainda acionava a heuristica.
 
-O alerta continuara aparecendo enquanto o segredo for lido direto do ambiente no mesmo codigo
-que faz a chamada de rede. Melhoria pendente: migrar para o mecanismo oficial de
-`SecretRef`/secret store do OpenClaw `2026.7.1-2`, validar a forma suportada nessa versao e
-remover a leitura direta de `process.env`. Nao improvisar sem testar plugin e deploy.
+O plugin foi migrado para um campo `bearerToken` declarado em
+`configContracts.secretInputs`. A configuracao persiste apenas a referencia estruturada ao
+provedor de ambiente (`SDR_N8N_TOKEN`); o runtime entrega o valor resolvido ao plugin. O codigo
+do plugin nao le mais `process.env`.
+
+O deploy de 2026-08-23 confirmou que o alerta `env-harvesting` desapareceu. O healthcheck
+remoto terminou com exit `0` e um turno interno do agente chamou `buscar_servicos`, recebeu
+13 servicos, fez 1 tool call e teve 0 falhas.
+
+`openclaw secrets audit --check` tambem confirmou `plaintext=0`, `unresolved=0` e
+`shadowed=0` para os campos suportados. Ele ainda retorna `legacy=1` por uma credencial OAuth
+do agente privado `main` armazenada no SQLite; esse residuo e preexistente, fica fora da
+migracao estatica de SecretRef e nao pertence ao plugin comercial.
 
 ### warn `gateway.probe_failed`
 
@@ -41,6 +51,15 @@ missing scope: operator.read
 
 Aviso preexistente: falta de escopo para a probe profunda, nao vulnerabilidade confirmada.
 Verificar com `openclaw status --all`.
+
+## Isolamento e redacao validados
+
+- `buscar_lead` e `buscar_cliente` recusaram duas consultas cruzadas com
+  `LEAD_SCOPE_FORBIDDEN` e `CUSTOMER_SCOPE_FORBIDDEN`
+- mutacoes vinculadas a lead, reuniao, follow-up e handoff usam a mesma verificacao de escopo
+- `ops.redact_text` foi corrigida para a sintaxe POSIX do PostgreSQL e confirmou redacao de
+  email e telefone em um teste remoto
+- um turno real de prompt injection foi recusado sem tool call e sem padrao de segredo
 
 ## Ativacao publica
 

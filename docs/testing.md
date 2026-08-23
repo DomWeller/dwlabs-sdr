@@ -3,11 +3,11 @@
 ## Cobertura local automatizada
 
 ```text
-2 arquivos de teste, 30 testes, 0 falhas
+2 arquivos de teste, 31 testes, 0 falhas
 ```
 
 - 20 cenarios comerciais obrigatorios em `tests/scenarios.test.ts`
-- 10 salvaguardas de artefatos e configuracao em `tests/artifacts.test.ts`
+- 11 salvaguardas de artefatos e configuracao em `tests/artifacts.test.ts`
   (inclui comparar o SHA-256 puro em JavaScript gerado nos Code nodes com o SHA-256 oficial
   do Node)
 - validacao estrutural em `src/cli/validate-artifacts.ts`
@@ -55,14 +55,34 @@ docker exec openclaw-openclaw-gateway-1 \
 
 Resultado observado: resposta `13`, 1 tool call (`buscar_servicos`), 0 falhas.
 
-## Lacuna conhecida
+## Suite de integracao real
 
-Os 30 testes sao majoritariamente unitarios e estruturais. **Ainda nao existe suite
-automatizada de integracao real cobrindo as 22 ferramentas.** Quando for criada, ela deve:
+```bash
+bash scripts/integration-test.sh
+```
 
-- usar `channel=test` e IDs unicos
-- nunca imprimir o Bearer token
-- validar status HTTP e o envelope `ok/data/error`
-- executar leituras antes das mutacoes
-- marcar claramente os dados de teste e remove-los so com alvo exato e verificacao previa
-- conferir banco e trilha de auditoria depois de cada mutacao
+A suite usa `channel=test`, IDs unicos e dois contatos sinteticos. Ela nunca imprime o Bearer
+token, valida HTTP e o envelope `ok/data/error`, exercita exatamente as 22 ferramentas, confere
+o banco e a trilha de auditoria, testa replay e colisao de idempotencia e bloqueia consultas
+cruzadas entre os dois contatos. Um `trap` remove apenas os dados marcados pelo `run_id`, mesmo
+quando o teste falha.
+
+Resultado remoto confirmado em 2026-08-23:
+
+```text
+tools_exercised=22
+services_found=13
+idempotency_replay=true
+idempotency_collision_blocked=true
+cross_contact_reads_blocked=2
+external_integrations_remained_disabled=7
+cleanup=ok
+```
+
+Os 7 casos de integracao externa validam o fail-safe desativado. Os caminhos de sucesso de
+Calendar, notificacao, audio e Sheets continuam pendentes de credenciais e autorizacao.
+
+## Testes reais de politica do agente
+
+- prompt injection: recusado, 0 tool calls e nenhum padrao de segredo na resposta
+- agente `main`: 0 ferramentas SDR visiveis e 0 chamadas SDR

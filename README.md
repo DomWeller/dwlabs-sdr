@@ -11,7 +11,7 @@ Implementacao local versionavel do SDR comercial da DWLabs sobre `OpenClaw 2026.
 - prompt, workspace e config do agente `comercial`
 - scripts idempotentes de backup, deploy, rollback, migrate, seed, import/export, healthcheck e teste
 - dispatchers fail-safe para Calendar, audio, Sheets e notificacao quando a credencial estiver ausente
-- observabilidade redigida e 20 cenarios automatizados
+- observabilidade redigida, 31 testes locais e suite remota controlada das 22 ferramentas
 
 ## Fluxo recomendado
 
@@ -38,4 +38,5 @@ npm run scan:secrets
 - sem segredos versionados; `.env.example` usa placeholders
 - WhatsApp permanece `owner-only`; exposicao publica exige `SDR_PUBLIC_FLAG=true` em etapa manual separada
 - agente comercial nao recebe shell, filesystem generico, admin, HTTP generico nem dados de terceiros
+- o banco valida o escopo do ator/contexto antes de ler ou alterar dados de um lead
 - Google Calendar, Google Sheets e audio real ficam desativados ate configuracao manual externa

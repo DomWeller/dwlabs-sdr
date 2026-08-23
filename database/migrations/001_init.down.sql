@@ -24,6 +24,9 @@ DROP FUNCTION IF EXISTS api.buscar_servico(JSONB);
 DROP FUNCTION IF EXISTS api.buscar_servicos(JSONB);
 
 DROP FUNCTION IF EXISTS audit.append_event(TEXT, UUID, JSONB);
+DROP FUNCTION IF EXISTS ops.is_lead_in_actor_scope(JSONB, UUID);
+DROP FUNCTION IF EXISTS ops.payload_hash(JSONB);
+DROP FUNCTION IF EXISTS ops.integration_enabled(TEXT);
 DROP FUNCTION IF EXISTS ops.calculate_score_from_payload(JSONB);
 DROP FUNCTION IF EXISTS ops.wrap_error(TEXT, TEXT, BOOLEAN);
 DROP FUNCTION IF EXISTS ops.wrap_success(JSONB, TEXT[]);
