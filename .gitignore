@@ -13,6 +13,7 @@ plugins/dwlabs-sdr-tools/dist/
 plugins/dwlabs-sdr-tools/*.tgz
 database/backups/
 database/dumps/
+backups/
 *.sqlitedb
 *.sqlite
 *.sqlite3

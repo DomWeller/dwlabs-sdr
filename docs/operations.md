@@ -3,25 +3,74 @@
 ## Gates
 
 1. build e validacao local
-2. importacao desativada de workflows
+2. importacao de workflows (33 importados, 31 publicados, 2 schedulers opcionais inativos)
 3. migrations e seed
-4. instalacao do plugin e criacao do agente `comercial`
+4. instalacao do plugin e configuracao do agente `comercial`
 5. testes owner-only
 6. piloto controlado
 7. exposicao publica apenas com `SDR_PUBLIC_FLAG=true`
 
+O gate 7 e o ultimo, nunca uma etapa automatica do deploy.
+
+## Estado operacional de referencia
+
+```text
+OpenClaw    2026.7.1-2   container openclaw-openclaw-gateway-1
+n8n         2.34.5       container n8n
+PostgreSQL               container n8n-postgres, banco dwlabs_sdr
+
+servicos=13  portfolio=3  leads=0  contatos=0  conversas=0
+schemas: core, rag, ops, audit, api
+
+workflows presentes=33  ativos=31  webhooks=22
+ferramentas do agente comercial=22
+SDR_PUBLIC_FLAG=false  SDR_BIND_WHATSAPP=false
+```
+
 ## Scripts
 
-- `scripts/backup.sh`
-- `scripts/deploy.sh`
+- `scripts/backup.sh` — tolera banco ou n8n inicialmente vazios
+- `scripts/deploy.sh` — build, bootstrap-env, backup, banco, migration, seed, workflows,
+  OpenClaw e healthcheck; nao ativa WhatsApp publico
 - `scripts/rollback.sh`
 - `scripts/migrate.sh`
 - `scripts/seed.sh`
-- `scripts/import-workflows.sh`
+- `scripts/import-workflows.sh` — importa 33, publica 31, despublica 2, reinicia o n8n
 - `scripts/export-workflows.sh`
+- `scripts/install-openclaw.sh` — idempotente; pula reinstalacao se o plugin for identico
+- `scripts/bootstrap-env.sh` — recarrega o `.env` depois de preservar/gerar valores
 - `scripts/healthcheck.sh`
 - `scripts/test.sh`
 
+## Rotina rapida
+
+```bash
+cd /home/dominique/docker/dwlabs-sdr
+bash scripts/healthcheck.sh
+```
+
+## Integracoes ainda desligadas
+
+Estes codigos sao comportamento esperado e seguro, nao falhas:
+
+```text
+CALENDAR_DISABLED       GOOGLE_SHEETS_DISABLED   AUDIO_PROVIDER_DISABLED
+NOTIFICATION_DISABLED   FOLLOWUP_DISABLED
+```
+
+## Backups
+
+```text
+backups/20260822-231016
+backups/20260822-232758
+/home/dominique/backups/dwlabs-sdr/20260821-171043
+```
+
+`backups/` esta no `.gitignore` e nao deve ser versionado. Nao apagar backups antes de criar e
+validar um novo ponto de restauracao.
+
 ## Observacao critica
 
-Este repositório nao toca no servidor remoto automaticamente. A abertura publica do WhatsApp nao deve ser executada agora.
+Este repositorio nao toca no servidor remoto automaticamente. A abertura publica do WhatsApp
+nao deve ser executada agora. Nao alterar os stacks vizinhos (Odoo/Petshop, Fazer.AI/Chatwoot,
+Portainer, Jellyfin) nem seus bancos.
