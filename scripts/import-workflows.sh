@@ -10,6 +10,16 @@ require_env POSTGRES_DB
 require_env POSTGRES_USER
 require_env POSTGRES_PASSWORD
 
+if [[ "${N8N_SDR_HEADER_AUTH_ID:-DWLABS_SDR_HEADER_AUTH}" != "DWLABS_SDR_HEADER_AUTH" ]]; then
+  echo "N8N_SDR_HEADER_AUTH_ID deve permanecer DWLABS_SDR_HEADER_AUTH nesta versao." >&2
+  exit 1
+fi
+
+if [[ "${N8N_WORKFLOW_PG_CREDENTIAL_ID:-DWLABS_SDR_POSTGRES_ID}" != "DWLABS_SDR_POSTGRES_ID" ]]; then
+  echo "N8N_WORKFLOW_PG_CREDENTIAL_ID deve permanecer DWLABS_SDR_POSTGRES_ID nesta versao." >&2
+  exit 1
+fi
+
 tmp_dir="$(remote_tmp_dir)"
 container_tmp="/tmp/dwlabs-sdr-import"
 trap 'cleanup_dir "${tmp_dir}"' EXIT
@@ -80,7 +90,11 @@ docker_exec "${N8N_CONTAINER}" n8n import:workflow \
   --projectId="${N8N_PROJECT_ID}" \
   --activeState=false >/dev/null
 
-while IFS= read -r workflow_file; do
+publish_workflow_file() {
+  local workflow_file="$1"
+  local workflow_id
+  local workflow_name
+
   workflow_id="$(json_string_from_file "${workflow_file}" "id")"
   workflow_name="$(json_string_from_file "${workflow_file}" "name")"
   if [[ -z "${workflow_id}" || -z "${workflow_name}" ]]; then
@@ -88,7 +102,27 @@ while IFS= read -r workflow_file; do
     exit 1
   fi
   docker_exec "${N8N_CONTAINER}" n8n publish:workflow --id="${workflow_id}" >/dev/null
-done < <(workflow_json_files)
+}
+
+unpublish_workflow_file() {
+  local workflow_file="$1"
+  local workflow_id
+
+  workflow_id="$(json_string_from_file "${workflow_file}" "id")"
+  if [[ -z "${workflow_id}" ]]; then
+    echo "Workflow sem id: ${workflow_file}" >&2
+    exit 1
+  fi
+  docker_exec "${N8N_CONTAINER}" n8n unpublish:workflow --id="${workflow_id}" >/dev/null
+}
+
+while IFS= read -r workflow_file; do
+  publish_workflow_file "${workflow_file}"
+done < <(active_workflow_json_files)
+
+while IFS= read -r workflow_file; do
+  unpublish_workflow_file "${workflow_file}"
+done < <(optional_scheduler_json_files)
 
 docker_exec "${N8N_CONTAINER}" sh -lc "rm -rf '${container_tmp}'"
 

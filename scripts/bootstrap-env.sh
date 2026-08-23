@@ -42,6 +42,7 @@ superuser="$(detect_postgres_superuser)"
 
 preserve_or_generate "N8N_SDR_SHARED_TOKEN"
 preserve_or_generate "POSTGRES_PASSWORD"
+load_env
 
 if ! env_file_has_real_value "N8N_PROJECT_ID"; then
   project_id="$(discover_n8n_project_id "${superuser}")"

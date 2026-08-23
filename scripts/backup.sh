@@ -21,9 +21,14 @@ else
   log "Banco ${POSTGRES_DB} ainda nao existe; dump SQL inicial foi pulado."
 fi
 
-docker_exec "${N8N_CONTAINER}" sh -lc "rm -rf /tmp/dwlabs-sdr-backup && mkdir -p /tmp/dwlabs-sdr-backup && n8n export:workflow --backup --output=/tmp/dwlabs-sdr-backup >/dev/null"
-docker cp "${N8N_CONTAINER}:/tmp/dwlabs-sdr-backup/." "${backup_dir}/n8n-workflows"
-docker_exec "${N8N_CONTAINER}" rm -rf /tmp/dwlabs-sdr-backup
+workflow_count="$(postgres_query n8n 'SELECT count(*) FROM workflow_entity;' "${superuser}")"
+if [[ "${workflow_count}" -gt 0 ]]; then
+  docker_exec "${N8N_CONTAINER}" sh -lc "rm -rf /tmp/dwlabs-sdr-backup && mkdir -p /tmp/dwlabs-sdr-backup && n8n export:workflow --backup --output=/tmp/dwlabs-sdr-backup >/dev/null"
+  docker cp "${N8N_CONTAINER}:/tmp/dwlabs-sdr-backup/." "${backup_dir}/n8n-workflows"
+  docker_exec "${N8N_CONTAINER}" rm -rf /tmp/dwlabs-sdr-backup
+else
+  log "n8n ainda nao possui workflows; exportacao inicial foi pulada."
+fi
 
 cp "${ROOT_DIR}/database/migrations/001_init.up.sql" "${backup_dir}/"
 cp "${ROOT_DIR}/database/migrations/001_init.down.sql" "${backup_dir}/"

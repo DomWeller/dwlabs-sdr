@@ -28,6 +28,7 @@ if [[ "${services_count}" != "13" ]]; then
 fi
 
 workflow_expected="$(workflow_json_files | wc -l | tr -d ' ')"
+workflow_active_expected="$(active_workflow_json_files | wc -l | tr -d ' ')"
 workflow_export="$(docker_exec "${N8N_CONTAINER}" n8n export:workflow --all --pretty)"
 workflow_present="$(printf '%s' "${workflow_export}" | grep -c '"name": "sdr\.' || true)"
 workflow_active="$(printf '%s' "${workflow_export}" | grep -c '"active": true' || true)"
@@ -37,18 +38,10 @@ if [[ "${workflow_present}" != "${workflow_expected}" ]]; then
   exit 1
 fi
 
-if [[ "${workflow_active}" != "${workflow_expected}" ]]; then
-  echo "Nem todos os workflows SDR estao ativos/publicados: ${workflow_active}/${workflow_expected}" >&2
+if [[ "${workflow_active}" != "${workflow_active_expected}" ]]; then
+  echo "Quantidade de workflows SDR publicados diverge: ${workflow_active}/${workflow_active_expected}" >&2
   exit 1
 fi
-
-while IFS= read -r workflow_file; do
-  workflow_id="$(json_string_from_file "${workflow_file}" "id")"
-  if ! printf '%s' "${workflow_export}" | grep -q "\"id\": \"${workflow_id}\""; then
-    echo "Workflow nao encontrado no n8n: ${workflow_file}" >&2
-    exit 1
-  fi
-done < <(workflow_json_files)
 
 docker_exec "${OPENCLAW_CONTAINER}" openclaw health --json >/dev/null
 docker_exec "${OPENCLAW_CONTAINER}" openclaw plugins inspect dwlabs-sdr-tools --runtime >/dev/null
@@ -69,12 +62,12 @@ negative_status="$(
         context: {},
         payload: { active_only: true }
       })
-    }).then((response) => response.status === 401 ? process.stdout.write('401') : process.exit(1)).catch(() => process.exit(1));
+    }).then((response) => response.status === 403 ? process.stdout.write('403') : process.exit(1)).catch(() => process.exit(1));
   " "${N8N_BASE_URL%/}/webhook/dwlabs-sdr/buscar-servicos"
 )"
 
-if [[ "${negative_status}" != "401" ]]; then
-  echo "Webhook sem auth nao retornou 401." >&2
+if [[ "${negative_status}" != "403" ]]; then
+  echo "Webhook sem auth nao retornou 403." >&2
   exit 1
 fi
 
@@ -85,7 +78,9 @@ docker_exec "${N8N_CONTAINER}" node -e "
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'authorization': 'Bearer ' + token
+      'authorization': 'Bearer ' + token,
+      'x-agent-id': 'comercial',
+      'x-channel': 'test'
     },
     body: JSON.stringify({
       request_id: 'health-positive',

@@ -69,6 +69,8 @@ require_runtime_defaults() {
   : "${REMOTE_DEPLOY_ROOT:=/home/dominique/docker/dwlabs-sdr}"
   : "${OPENCLAW_HOST_ROOT:=/home/dominique/docker/openclaw}"
   : "${OPENCLAW_HOST_ENV_FILE:=${OPENCLAW_HOST_ROOT}/.env}"
+  : "${OPENCLAW_HOST_CONFIG_FILE:=${OPENCLAW_HOST_ROOT}/data/config/openclaw.json}"
+  : "${OPENCLAW_HOST_COMPOSE_OVERRIDE:=${OPENCLAW_HOST_ROOT}/docker-compose.override.yml}"
   : "${OPENCLAW_PLUGIN_WORKSPACE_ROOT:=${OPENCLAW_HOST_ROOT}/data/config/workspace-comercial}"
   : "${OPENCLAW_PLUGIN_BASE_URL:=http://100.94.57.43:5678/webhook}"
   : "${OPENCLAW_PLUGIN_TIMEOUT_MS:=8000}"
@@ -225,19 +227,19 @@ GRANT CONNECT, TEMP ON DATABASE "${POSTGRES_DB}" TO "${app_role}";
 
 DO \$\$
 DECLARE
-  schema_name TEXT;
+  target_schema TEXT;
 BEGIN
-  FOR schema_name IN SELECT unnest(ARRAY['core', 'rag', 'ops', 'audit', 'api'])
+  FOR target_schema IN SELECT unnest(ARRAY['core', 'rag', 'ops', 'audit', 'api'])
   LOOP
-    IF EXISTS (SELECT 1 FROM information_schema.schemata s WHERE s.schema_name = schema_name) THEN
-      EXECUTE format('ALTER SCHEMA %I OWNER TO %I', schema_name, '${owner_role}');
-      EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', schema_name, '${app_role}');
-      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', schema_name, '${app_role}');
-      EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', schema_name, '${app_role}');
-      EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA %I TO %I', schema_name, '${app_role}');
-      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', '${owner_role}', schema_name, '${app_role}');
-      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I GRANT USAGE, SELECT ON SEQUENCES TO %I', '${owner_role}', schema_name, '${app_role}');
-      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I GRANT EXECUTE ON FUNCTIONS TO %I', '${owner_role}', schema_name, '${app_role}');
+    IF EXISTS (SELECT 1 FROM information_schema.schemata s WHERE s.schema_name = target_schema) THEN
+      EXECUTE format('ALTER SCHEMA %I OWNER TO %I', target_schema, '${owner_role}');
+      EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', target_schema, '${app_role}');
+      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', target_schema, '${app_role}');
+      EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', target_schema, '${app_role}');
+      EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA %I TO %I', target_schema, '${app_role}');
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', '${owner_role}', target_schema, '${app_role}');
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I GRANT USAGE, SELECT ON SEQUENCES TO %I', '${owner_role}', target_schema, '${app_role}');
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I GRANT EXECUTE ON FUNCTIONS TO %I', '${owner_role}', target_schema, '${app_role}');
     END IF;
   END LOOP;
 END
@@ -331,4 +333,16 @@ json_string_from_file() {
 
 workflow_json_files() {
   find "${ROOT_DIR}/workflows" -type f -name '*.json' | sort
+}
+
+active_workflow_json_files() {
+  find "${ROOT_DIR}/workflows/public-tools" -type f -name '*.json' | sort
+  find "${ROOT_DIR}/workflows/subworkflows" -type f -name '*.json' | sort
+  printf '%s\n' "${ROOT_DIR}/workflows/schedulers/sdr.health.selfcheck.json"
+}
+
+optional_scheduler_json_files() {
+  printf '%s\n' \
+    "${ROOT_DIR}/workflows/schedulers/sdr.followup.scheduler.json" \
+    "${ROOT_DIR}/workflows/schedulers/sdr.sheets.sync.scheduler.json"
 }
