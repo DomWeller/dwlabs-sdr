@@ -4,6 +4,7 @@ DROP TRIGGER IF EXISTS trg_stop_followups_on_inbound ON core.interactions;
 DROP FUNCTION IF EXISTS ops.sync_optout_suppression();
 DROP FUNCTION IF EXISTS ops.stop_followups_on_inbound();
 DROP FUNCTION IF EXISTS ops.apply_retention(BOOLEAN);
+DROP FUNCTION IF EXISTS ops.delivery_is_sendable(UUID);
 DROP FUNCTION IF EXISTS ops.fail_delivery(UUID, TEXT);
 DROP FUNCTION IF EXISTS ops.complete_delivery(UUID, TEXT);
 DROP FUNCTION IF EXISTS ops.claim_delivery(TEXT);

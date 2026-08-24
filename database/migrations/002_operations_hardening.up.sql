@@ -74,7 +74,7 @@ BEGIN
     UPDATE core.followups SET status = 'stopped', stop_reason = 'new_inbound', updated_at = NOW()
     WHERE lead_id = NEW.lead_id AND status = 'scheduled';
     UPDATE ops.delivery_outbox SET status = 'cancelled', updated_at = NOW()
-    WHERE lead_id = NEW.lead_id AND status IN ('queued', 'retry');
+    WHERE lead_id = NEW.lead_id AND status IN ('queued', 'retry', 'claimed');
   END IF;
   RETURN NEW;
 END
@@ -103,7 +103,7 @@ BEGIN
     UPDATE core.followups SET status = 'stopped', stop_reason = 'opt_out', updated_at = NOW()
     WHERE lead_id = NEW.lead_id AND status = 'scheduled';
     UPDATE ops.delivery_outbox SET status = 'cancelled', updated_at = NOW()
-    WHERE lead_id = NEW.lead_id AND status IN ('queued', 'retry');
+    WHERE lead_id = NEW.lead_id AND status IN ('queued', 'retry', 'claimed');
   END IF;
   RETURN NEW;
 END
@@ -244,6 +244,25 @@ BEGIN
   JOIN core.leads lead ON lead.lead_id = claimed.lead_id
   JOIN core.contacts contact ON contact.contact_id = lead.contact_id;
 END
+$$;
+
+CREATE OR REPLACE FUNCTION ops.delivery_is_sendable(target_delivery_id UUID)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, core, ops
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM ops.delivery_outbox outbox
+    CROSS JOIN LATERAL ops.followup_is_eligible(outbox.lead_id) eligibility
+    WHERE outbox.delivery_id = target_delivery_id
+      AND outbox.status = 'claimed'
+      AND eligibility.eligible
+      AND NOT EXISTS (SELECT 1 FROM ops.runtime_flags WHERE flag_name = 'automation_paused' AND enabled)
+      AND EXISTS (SELECT 1 FROM ops.runtime_flags WHERE flag_name = 'dispatcher_enabled' AND enabled)
+  )
 $$;
 
 CREATE OR REPLACE FUNCTION ops.complete_delivery(target_delivery_id UUID, external_id TEXT)

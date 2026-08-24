@@ -164,6 +164,8 @@ describe("artifact safeguards", () => {
     expect(migration).toContain("RATE_LIMITED");
     expect(migration).toContain("trg_stop_followups_on_inbound");
     expect(migration).toContain("trg_sync_optout_suppression");
+    expect(migration).toContain("ops.delivery_is_sendable");
+    expect(migration).toContain("'queued', 'retry', 'claimed'");
     expect(migration).toContain("INTERVAL '72 hours'");
     expect(migration).toContain("SECURITY DEFINER");
     const lib = readFileSync(path.join(rootDir, "scripts/lib.sh"), "utf8");

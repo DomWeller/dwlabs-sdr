@@ -41,6 +41,11 @@ async function tick() {
   const claim = await pool.query("SELECT * FROM ops.claim_delivery($1)", [workerId]);
   if (!claim.rowCount) return;
   const delivery = claim.rows[0];
+  const sendable = await pool.query("SELECT ops.delivery_is_sendable($1) AS allowed", [delivery.delivery_id]);
+  if (!sendable.rows[0]?.allowed) {
+    console.log(JSON.stringify({ event: "delivery_cancelled_before_send", delivery_id: delivery.delivery_id }));
+    return;
+  }
   try {
     const result = await sendWhatsApp(delivery.target_phone, delivery.message_text);
     const externalId = String(result?.messageId ?? result?.id ?? "accepted").slice(0, 200);

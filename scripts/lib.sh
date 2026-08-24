@@ -264,8 +264,8 @@ GRANT INSERT ON audit.admin_change_log TO "${POSTGRES_ADMIN_USER}";
 GRANT USAGE ON SCHEMA ops TO "${POSTGRES_DISPATCHER_USER}";
 REVOKE ALL ON ALL TABLES IN SCHEMA core, rag, ops, audit FROM "${POSTGRES_DISPATCHER_USER}";
 GRANT SELECT ON ops.runtime_flags TO "${POSTGRES_DISPATCHER_USER}";
-REVOKE ALL ON FUNCTION ops.enqueue_due_followups(TEXT,BOOLEAN), ops.claim_delivery(TEXT), ops.complete_delivery(UUID,TEXT), ops.fail_delivery(UUID,TEXT) FROM PUBLIC, "${POSTGRES_USER}", "${POSTGRES_ADMIN_USER}";
-GRANT EXECUTE ON FUNCTION ops.enqueue_due_followups(TEXT,BOOLEAN), ops.claim_delivery(TEXT), ops.complete_delivery(UUID,TEXT), ops.fail_delivery(UUID,TEXT) TO "${POSTGRES_DISPATCHER_USER}";
+REVOKE ALL ON FUNCTION ops.enqueue_due_followups(TEXT,BOOLEAN), ops.claim_delivery(TEXT), ops.delivery_is_sendable(UUID), ops.complete_delivery(UUID,TEXT), ops.fail_delivery(UUID,TEXT) FROM PUBLIC, "${POSTGRES_USER}", "${POSTGRES_ADMIN_USER}";
+GRANT EXECUTE ON FUNCTION ops.enqueue_due_followups(TEXT,BOOLEAN), ops.claim_delivery(TEXT), ops.delivery_is_sendable(UUID), ops.complete_delivery(UUID,TEXT), ops.fail_delivery(UUID,TEXT) TO "${POSTGRES_DISPATCHER_USER}";
 SQL
 )
   postgres_query "${POSTGRES_DB}" "${sql}" "${superuser}" >/dev/null
