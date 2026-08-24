@@ -31,6 +31,7 @@ installed_plugin_matches_source() {
   local source_root="${ROOT_DIR}/plugins/dwlabs-sdr-tools"
   local installed_root="${OPENCLAW_HOST_ROOT}/data/config/extensions/dwlabs-sdr-tools"
 
+  source_plugin_bundle_current || return 1
   [[ -f "${source_root}/dist/index.js" ]] || return 1
   [[ -f "${installed_root}/dist/index.js" ]] || return 1
   [[ -f "${source_root}/openclaw.plugin.json" ]] || return 1
@@ -41,6 +42,12 @@ installed_plugin_matches_source() {
   cmp -s "${source_root}/dist/index.js" "${installed_root}/dist/index.js" &&
     cmp -s "${source_root}/openclaw.plugin.json" "${installed_root}/openclaw.plugin.json" &&
     cmp -s "${source_root}/package.json" "${installed_root}/package.json"
+}
+
+source_plugin_bundle_current() {
+  local source_root="${ROOT_DIR}/plugins/dwlabs-sdr-tools"
+  [[ -f "${source_root}/dist/index.js" ]] || return 1
+  [[ ! "${source_root}/src/index.ts" -nt "${source_root}/dist/index.js" ]]
 }
 
 refresh_installed_plugin_files() {
@@ -63,7 +70,7 @@ install_or_reuse_plugin() {
   fi
 
   local installed_root="${OPENCLAW_HOST_ROOT}/data/config/extensions/dwlabs-sdr-tools"
-  if [[ -d "${installed_root}/node_modules/typebox" ]]; then
+  if source_plugin_bundle_current && [[ -d "${installed_root}/node_modules/typebox" ]]; then
     refresh_installed_plugin_files
     log "Plugin OpenClaw atualizado no diretorio gerenciado, preservando dependencias instaladas."
     return 0

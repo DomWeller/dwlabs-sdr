@@ -149,6 +149,8 @@ describe("artifact safeguards", () => {
     expect(installScript).toContain('"source":"env","provider":"default","id":"SDR_N8N_TOKEN"');
     expect(installScript).toContain('"group:web","group:ui","group:messaging","group:memory"');
     expect(installScript).toContain("openclaw agents set-identity");
+    expect(installScript).toContain("source_plugin_bundle_current");
+    expect(installScript).toContain('src/index.ts" -nt');
     expect(pluginSource).not.toContain("process.env.SDR_N8N_TOKEN");
     expect(pluginSource).toContain("config.bearerToken");
     expect(pluginManifest.configContracts?.secretInputs?.paths).toContainEqual({
