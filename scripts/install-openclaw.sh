@@ -80,7 +80,7 @@ install_or_reuse_plugin() {
   bundle_path="$(build_plugin_bundle)"
   docker cp "${bundle_path}" "${OPENCLAW_CONTAINER}:/tmp/dwlabs-sdr-tools.tgz"
   docker_exec "${OPENCLAW_CONTAINER}" openclaw plugins install --force /tmp/dwlabs-sdr-tools.tgz >/dev/null
-  docker_exec "${OPENCLAW_CONTAINER}" rm -f /tmp/dwlabs-sdr-tools.tgz >/dev/null
+  docker exec -u 0 "${OPENCLAW_CONTAINER}" rm -f /tmp/dwlabs-sdr-tools.tgz >/dev/null
 }
 
 patch_openclaw_env() {
