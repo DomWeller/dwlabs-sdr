@@ -25,7 +25,7 @@ recebe zero ferramentas ou perde parte delas.
 3. `agents.list[comercial].tools.profile = "full"`
 4. o agente `comercial` mantem allowlist exata das 22 ferramentas e denylist ampla de grupos
 5. `agents.list[comercial].skills = []`, evitando que skills globais entrem no prompt comercial
-5. `plugins.entries.codex.config.codexDynamicToolsLoading = "direct"`
+6. `plugins.entries.codex.config.codexDynamicToolsLoading = "direct"`
 
 `profile: "full"` nao significa acesso amplo: a allowlist exata e a denylist aplicadas depois
 do perfil removem shell, filesystem, web generica, browser, mensagens administrativas,
@@ -61,6 +61,17 @@ docker exec openclaw-openclaw-gateway-1 \
 
 O esperado e: 22 ferramentas permitidas ao `comercial`, as mesmas 22 negadas ao `main`, e o
 plugin com `Status: loaded` expondo exatamente 22 ferramentas.
+
+O plugin misto tambem registra quatro hooks: bloqueio de resposta durante handoff, injecao do
+contexto CRM do proprio contato, telemetria sanitizada de modelo e telemetria do turno completo.
+O inventario estatico pode mostrar `hookCount=0`; a prova de registro no runtime e a linha
+`22 tools e 4 hooks ... registrados` no log do gateway e a prova funcional e o evento
+`agent_turn` gravado depois de um turno interno.
+
+`allowConversationAccess=true` fica limitado a `dwlabs-sdr-tools` porque `agent_end` e protegido
+pelo OpenClaw. O handler nao le nem transmite `messages`: envia apenas duracao, resultado,
+provedor, modelo e canal. O plugin ja era confiavel para contexto de conversa por causa do
+`before_prompt_build` usado para recuperar o CRM.
 
 ## Canal publico
 

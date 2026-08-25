@@ -11,7 +11,7 @@ Implementacao local versionavel do SDR comercial da DWLabs sobre `OpenClaw 2026.
 - prompt, workspace e config do agente `comercial`
 - scripts idempotentes de backup, deploy, rollback, migrate, seed, import/export, healthcheck e teste
 - dispatchers fail-safe para Calendar, audio, Sheets e notificacao quando a credencial estiver ausente
-- observabilidade redigida, 31 testes locais e suite remota controlada das 22 ferramentas
+- observabilidade redigida, 42 testes locais e suite remota controlada das 22 ferramentas
 - painel administrativo interno, outbox de entrega e dispatcher owner-only
 - rate limiting, retencao LGPD, opt-out e scripts reversiveis de piloto
 

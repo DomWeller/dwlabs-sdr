@@ -61,7 +61,7 @@ seguem como placeholders, sem OAuth configurado.
 - o SHA-256 usado nos Code nodes e uma implementacao pura em JavaScript, porque o sandbox do
   n8n nao expoe `crypto` nem `require('node:crypto')`
 - cada workflow publico grava duracao, resultado e codigo de erro em `ops.metrics_events`
-- `sdr.agent.metrics` recebe somente provedor, modelo, duracao, resultado e TTFB; nunca recebe
-  prompt, resposta, telefone ou e-mail
+- `sdr.agent.metrics` aceita `model_call` e o fallback `agent_turn`, recebendo somente provedor,
+  modelo, duracao, resultado e TTFB; nunca recebe prompt, resposta, telefone ou e-mail
 
 Nenhum export contem token real.

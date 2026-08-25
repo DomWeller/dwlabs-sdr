@@ -3,7 +3,7 @@
 ## Cobertura local automatizada
 
 ```text
-3 arquivos de teste, 41 testes, 0 falhas
+3 arquivos de teste, 42 testes, 0 falhas
 ```
 
 - 20 cenarios comerciais obrigatorios em `tests/scenarios.test.ts`
@@ -11,7 +11,7 @@
   (inclui comparar o SHA-256 puro em JavaScript gerado nos Code nodes com o SHA-256 oficial
   do Node)
 - validacao estrutural em `src/cli/validate-artifacts.ts`
-- 3 testes do bloqueio de handoff, recuperacao de contexto e telemetria em
+- 4 testes do bloqueio de handoff, recuperacao de contexto e telemetria em
   `tests/handoff-guard.test.ts`
 - sintaxe shell em `scripts/lint-shell.sh`
 - varredura de segredos em `scripts/scan-secrets.sh`

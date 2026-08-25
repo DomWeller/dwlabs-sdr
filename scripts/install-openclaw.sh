@@ -156,7 +156,11 @@ configure_plugin() {
   docker_exec "${OPENCLAW_CONTAINER}" \
     openclaw config set plugins.entries.dwlabs-sdr-tools.hooks.allowPromptInjection 'true' --strict-json >/dev/null
   docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set plugins.entries.dwlabs-sdr-tools.hooks.allowConversationAccess 'true' --strict-json >/dev/null
+  docker_exec "${OPENCLAW_CONTAINER}" \
     openclaw config set plugins.entries.dwlabs-sdr-tools.hooks.timeouts.before_prompt_build '6000' --strict-json >/dev/null
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set plugins.entries.dwlabs-sdr-tools.hooks.timeouts.agent_end '4000' --strict-json >/dev/null
 }
 
 merge_json_arrays() {

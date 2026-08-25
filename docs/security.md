@@ -15,6 +15,8 @@
 - roles separadas para n8n, painel e dispatcher
 - painel em loopback/Tailscale com scrypt, cookie seguro e CSRF
 - dispatcher sem shell, com destino owner-only e outbox idempotente
+- `allowConversationAccess` habilitado somente no plugin SDR para o hook `agent_end`; o handler
+  ignora mensagens e persiste apenas metadados sanitizados de duracao/resultado
 
 ## Auditoria de seguranca do OpenClaw
 

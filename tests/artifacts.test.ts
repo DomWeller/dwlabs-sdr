@@ -140,6 +140,7 @@ describe("artifact safeguards", () => {
     expect(installScript).not.toContain("write_compose_override");
     expect(installScript).not.toContain("fs.writeFileSync");
     expect(installScript).toContain("openclaw config set plugins.entries.dwlabs-sdr-tools.config");
+    expect(installScript).toContain("hooks.allowConversationAccess 'true'");
     expect(installScript).toContain("openclaw config set tools.allow");
     expect(installScript).toContain("openclaw config set \"agents.list[${main_agent_index}].tools.deny\"");
     expect(installScript).toContain("openclaw config set \"agents.list[${agent_index}].tools.profile\"");
