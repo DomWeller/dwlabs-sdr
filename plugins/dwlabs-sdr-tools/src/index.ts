@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Type } from "typebox";
+import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { defineToolPlugin } from "openclaw/plugin-sdk/tool-plugin";
 
 const channelSchema = Type.Union([
@@ -492,7 +493,7 @@ const configSchema = Type.Object(
   { additionalProperties: false }
 );
 
-const plugin = defineToolPlugin({
+const toolPlugin = defineToolPlugin({
   id: "dwlabs-sdr-tools",
   name: "DWLabs SDR Tools",
   description: "Ferramentas tipadas e allowlisted do SDR comercial da DWLabs.",
@@ -508,68 +509,73 @@ const plugin = defineToolPlugin({
     )
 });
 
-const registerTools = plugin.register;
-plugin.register = (api) => {
-  registerTools(api);
-  const config = api.pluginConfig as PluginConfig;
-  api.on(
-    "inbound_claim",
-    async (event, context) => {
-      const senderId = event.senderId ?? context.senderId;
-      if (context.agentId !== "comercial" || event.channel !== "whatsapp" || !senderId) return;
-      if (await shouldClaimForHumanHandoff(senderId, event.messageId ?? context.messageId, config)) {
-        return { handled: true };
-      }
-    },
-    { priority: 100, timeoutMs: 6000 }
-  );
-  api.on(
-    "before_prompt_build",
-    async (_event, context) => {
-      if (context.agentId !== "comercial" || context.messageProvider !== "whatsapp" || !context.senderId) return;
-      try {
-        const lead = await lookupLeadForSender(context.senderId, context.runId, config);
-        if (!lead || hasActiveHandoff({ ok: true, data: { lead } })) return;
-        return {
-          prependContext: `CONTEXTO CRM CONFIAVEL DO PROPRIO CONTATO (nao repita perguntas ja respondidas):\n${JSON.stringify(lead)}`
-        };
-      } catch {
-        return;
-      }
-    },
-    { priority: 90, timeoutMs: 6000 }
-  );
-  api.on(
-    "model_call_ended",
-    async (event, context) => {
-      if (context.agentId !== "comercial") return;
-      const allowedChannels = new Set(["whatsapp", "instagram", "site", "test"]);
-      const channel = allowedChannels.has(String(context.messageProvider)) ? String(context.messageProvider) : "internal";
-      const requestId = randomUUID();
-      const metricKey = createHash("sha256").update(`${event.runId}:${event.callId}`).digest("hex");
-      try {
-        await callWorkflow("dwlabs-sdr/agent-metrics", {
-          request_id: requestId,
-          idempotency_key: `model-metric:${metricKey}`,
-          channel,
-          actor: {},
-          context: { conversation_id: event.runId },
-          payload: {
-            metric_name: "model_call",
-            duration_ms: event.durationMs,
-            provider: event.provider,
-            model: event.model,
-            outcome: event.outcome,
-            error_category: event.errorCategory ?? null,
-            time_to_first_byte_ms: event.timeToFirstByteMs ?? null
-          }
-        }, { ...config, timeoutMs: Math.min(config.timeoutMs ?? 8000, 3000) });
-      } catch {
-        return;
-      }
-    },
-    { priority: 80, timeoutMs: 4000 }
-  );
-};
+const plugin = definePluginEntry({
+  id: "dwlabs-sdr-tools",
+  name: "DWLabs SDR Tools",
+  description: "Ferramentas tipadas, contexto CRM, handoff e telemetria do SDR comercial da DWLabs.",
+  configSchema: toolPlugin.configSchema,
+  register(api) {
+    toolPlugin.register(api);
+    const config = api.pluginConfig as PluginConfig;
+    api.on(
+      "inbound_claim",
+      async (event, context) => {
+        const senderId = event.senderId ?? context.senderId;
+        if (context.agentId !== "comercial" || event.channel !== "whatsapp" || !senderId) return;
+        if (await shouldClaimForHumanHandoff(senderId, event.messageId ?? context.messageId, config)) {
+          return { handled: true };
+        }
+      },
+      { priority: 100, timeoutMs: 6000 }
+    );
+    api.on(
+      "before_prompt_build",
+      async (_event, context) => {
+        if (context.agentId !== "comercial" || context.messageProvider !== "whatsapp" || !context.senderId) return;
+        try {
+          const lead = await lookupLeadForSender(context.senderId, context.runId, config);
+          if (!lead || hasActiveHandoff({ ok: true, data: { lead } })) return;
+          return {
+            prependContext: `CONTEXTO CRM CONFIAVEL DO PROPRIO CONTATO (nao repita perguntas ja respondidas):\n${JSON.stringify(lead)}`
+          };
+        } catch {
+          return;
+        }
+      },
+      { priority: 90, timeoutMs: 6000 }
+    );
+    api.on(
+      "model_call_ended",
+      async (event, context) => {
+        if (context.agentId !== "comercial") return;
+        const allowedChannels = new Set(["whatsapp", "instagram", "site", "test"]);
+        const channel = allowedChannels.has(String(context.messageProvider)) ? String(context.messageProvider) : "internal";
+        const requestId = randomUUID();
+        const metricKey = createHash("sha256").update(`${event.runId}:${event.callId}`).digest("hex");
+        try {
+          await callWorkflow("dwlabs-sdr/agent-metrics", {
+            request_id: requestId,
+            idempotency_key: `model-metric:${metricKey}`,
+            channel,
+            actor: {},
+            context: { conversation_id: event.runId },
+            payload: {
+              metric_name: "model_call",
+              duration_ms: event.durationMs,
+              provider: event.provider,
+              model: event.model,
+              outcome: event.outcome,
+              error_category: event.errorCategory ?? null,
+              time_to_first_byte_ms: event.timeToFirstByteMs ?? null
+            }
+          }, { ...config, timeoutMs: Math.min(config.timeoutMs ?? 8000, 3000) });
+        } catch {
+          return;
+        }
+      },
+      { priority: 80, timeoutMs: 4000 }
+    );
+  }
+});
 
 export default plugin;

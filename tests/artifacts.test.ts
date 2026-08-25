@@ -224,8 +224,10 @@ describe("artifact safeguards", () => {
     expect(migration).toContain("UPDATE ops.delivery_outbox");
     expect(migration).toContain("'queued', 'retry', 'claimed'");
     expect(migration).toContain("'handoff', (");
-    expect(plugin).toContain('api.on(\n    "inbound_claim"');
+    expect(plugin).toContain('"inbound_claim"');
     expect(plugin).toContain('event.channel !== "whatsapp"');
+    expect(plugin).toContain('definePluginEntry({');
+    expect(plugin).toContain('toolPlugin.register(api)');
     expect(plugin).toContain('"before_prompt_build"');
     expect(plugin).toContain('"model_call_ended"');
     expect(plugin).toContain("CONTEXTO CRM CONFIAVEL DO PROPRIO CONTATO");
