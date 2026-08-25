@@ -3,14 +3,16 @@
 ## Cobertura local automatizada
 
 ```text
-2 arquivos de teste, 35 testes, 0 falhas
+3 arquivos de teste, 41 testes, 0 falhas
 ```
 
 - 20 cenarios comerciais obrigatorios em `tests/scenarios.test.ts`
-- 15 salvaguardas de artefatos e configuracao em `tests/artifacts.test.ts`
+- 18 salvaguardas de artefatos e configuracao em `tests/artifacts.test.ts`
   (inclui comparar o SHA-256 puro em JavaScript gerado nos Code nodes com o SHA-256 oficial
   do Node)
 - validacao estrutural em `src/cli/validate-artifacts.ts`
+- 3 testes do bloqueio de handoff, recuperacao de contexto e telemetria em
+  `tests/handoff-guard.test.ts`
 - sintaxe shell em `scripts/lint-shell.sh`
 - varredura de segredos em `scripts/scan-secrets.sh`
 
@@ -29,8 +31,8 @@ npm run scan:secrets
 bash scripts/healthcheck.sh
 ```
 
-Ele valida containers, banco, catalogo, OpenClaw, plugin e agente, exige 33 workflows
-presentes e 31 ativos, e checa os dois comportamentos do webhook:
+Ele valida containers, banco, catalogo, OpenClaw, plugin e agente, exige 34 workflows
+presentes e 32 ativos, e checa os dois comportamentos do webhook:
 
 - chamada sem autenticacao deve retornar HTTP `403` (comportamento nativo do Header Auth)
 - chamada autenticada, com `x-agent-id: comercial` e `x-channel: test`, deve retornar JSON valido
@@ -79,11 +81,22 @@ external_integrations_remained_disabled=7
 cleanup=ok
 ```
 
-Os 7 casos de integracao externa validam o fail-safe desativado. Os caminhos de sucesso de
-Calendar, notificacao, audio e Sheets continuam pendentes de credenciais e autorizacao.
+Os 7 casos de integracao externa validam o fail-safe desativado. Audio e Calendar tambem possuem
+fixtures deterministicas em `channel=test`; os caminhos OAuth reais de Calendar, notificacao e
+Sheets continuam pendentes de credenciais e autorizacao.
 
-Antes do piloto, testar tambem migration `002` em banco temporario, concorrencia do claim,
+As migrations `001..006` foram aplicadas em banco temporario; a `006` foi reaplicada, revertida e
+aplicada novamente, confirmando score padrao `23` e 21 regras. Antes do piloto, testar tambem
+concorrencia do claim,
 destino fora da allowlist, tres retries, opt-out, nova entrada, painel/CSRF e `pilot-stop`.
+
+## Regressao do relatorio de WhatsApp de 2026-08-25
+
+- fechamento: catalogo aceita valor/faixa e `commercial_url`; sem ambos, o agente cria resumo e handoff
+- contexto: `before_prompt_build` recupera o CRM minimizado do proprio contato a cada turno
+- handoff: `inbound_claim` usa o canal real do evento e silencia `open`/`acknowledged`
+- identidade: prompt proibe apresentar a DWLabs como plataforma externa
+- latencia: ferramentas e chamadas do modelo geram metricas sem conteudo da conversa
 
 ## Testes reais de politica do agente
 

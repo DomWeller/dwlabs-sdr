@@ -3,7 +3,7 @@
 ## Gates
 
 1. build e validacao local
-2. importacao de workflows (33 importados, 31 publicados, 2 schedulers opcionais inativos)
+2. importacao de workflows (34 importados, 32 publicados, 2 schedulers opcionais inativos)
 3. migrations e seed
 4. instalacao do plugin e configuracao do agente `comercial`
 5. testes owner-only
@@ -24,6 +24,9 @@ O deploy gera segredos ausentes sem imprimi-los. A senha inicial fica em
 O painel escuta em `127.0.0.1:5680` e o Tailscale Serve usa HTTPS `:8445`.
 Em `Atendimento humano`, `Assumir` muda o handoff para `acknowledged` e `Encerrar` libera novamente
 as respostas automaticas daquele contato. O encerramento nao recria follow-ups cancelados.
+O painel tambem permite manter catalogo, preco/faixa, link comercial HTTPS, portfolio, conhecimento,
+perguntas, score, horario comercial, pipeline e fila LGPD. Toda mutacao usa CSRF, transacao e log
+administrativo redigido.
 
 ## Piloto owner-only
 
@@ -47,7 +50,7 @@ PostgreSQL               container n8n-postgres, banco dwlabs_sdr
 servicos=13  portfolio=3  leads=0  contatos=0  conversas=0
 schemas: core, rag, ops, audit, api
 
-workflows presentes=33  ativos=31  webhooks=22
+workflows presentes=34  ativos=32  webhooks publicos=22  webhook interno=1
 ferramentas do agente comercial=22
 SDR_PUBLIC_FLAG=false  SDR_BIND_WHATSAPP=false
 ```
@@ -60,7 +63,7 @@ SDR_PUBLIC_FLAG=false  SDR_BIND_WHATSAPP=false
 - `scripts/rollback.sh`
 - `scripts/migrate.sh`
 - `scripts/seed.sh`
-- `scripts/import-workflows.sh` — importa 33, publica 31, despublica 2, reinicia o n8n
+- `scripts/import-workflows.sh` — importa 34, publica 32, despublica 2, reinicia o n8n
 - `scripts/export-workflows.sh`
 - `scripts/install-openclaw.sh` — idempotente; pula reinstalacao se o plugin for identico
 - `scripts/bootstrap-env.sh` — recarrega o `.env` depois de preservar/gerar valores

@@ -12,7 +12,7 @@ Banco logico alvo: `dwlabs_sdr` no cluster PostgreSQL ja existente do stack `n8n
 
 ## Arquivos
 
-- migrations: `database/migrations/001_init.up.sql` e `002_operations_hardening.up.sql`
+- migrations: `database/migrations/001_init.up.sql` ate `006_admin_observability_crm.up.sql`
 - rollbacks correspondentes: arquivos `*.down.sql`
 - seed: `database/seeds/001_seed_catalog.sql`
 - roles template: `database/roles/001_minimum_roles.sql.template`
@@ -23,6 +23,8 @@ Banco logico alvo: `dwlabs_sdr` no cluster PostgreSQL ja existente do stack `n8n
 - bandas: frio `0-39`, morno `40-69`, quente `70-84`, muito quente `85-100`
 - opt-out interrompe follow-up
 - idempotencia por inbox dedicado
+- regras de score e horario comercial administraveis
+- campos estruturados de briefing no lead e link comercial opcional por servico
 
 ## Migrations incrementais
 
@@ -45,3 +47,11 @@ Roles:
 
 Retencao default: interacoes por 90 dias; leads inativos, auditoria e metricas por 12 meses. A
 funcao `ops.apply_retention(TRUE)` faz somente a simulacao; a execucao real exige `FALSE` explicito.
+
+## Administracao e observabilidade (`006`)
+
+- completa os campos de briefing de empresa, contato e lead
+- adiciona `core.score_rules`, `core.business_hours` e `core.calendar_blocks`
+- permite editar catalogo, portfolio, conhecimento e regras sem acesso direto ao banco
+- registra latencia/resultado das ferramentas e chamadas do modelo em `ops.metrics_events`
+- inclui rollback funcional que restaura as funcoes anteriores antes de remover tabelas/colunas

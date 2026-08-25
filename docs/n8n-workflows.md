@@ -9,17 +9,19 @@ integracoes externas ainda nao configuradas.
 
 - `workflows/public-tools/`: 22 ferramentas publicas (um webhook por ferramenta)
 - `workflows/subworkflows/`: 8 utilitarios reutilizaveis
+- `workflows/internal/`: `sdr.agent.metrics`, webhook autenticado de telemetria sem conteudo de conversa
 - `workflows/schedulers/`: `sdr.health.selfcheck`, `sdr.followup.scheduler`, `sdr.sheets.sync.scheduler`
 
 ## Estado esperado depois da importacao
 
 ```text
-workflows presentes = 33
-workflows ativos    = 31
+workflows presentes = 34
+workflows ativos    = 32
 webhooks registrados = 22
 ```
 
-Composicao dos 31 ativos: 22 ferramentas publicas + 8 subworkflows + `sdr.health.selfcheck`.
+Composicao dos 32 ativos: 22 ferramentas publicas + 8 subworkflows + `sdr.agent.metrics` +
+`sdr.health.selfcheck`.
 
 Ficam **inativos de proposito**:
 
@@ -35,7 +37,7 @@ credenciais, opt-out, retry e teste controlado.
 bash scripts/import-workflows.sh
 ```
 
-O script importa os 33, publica 31, despublica os 2 opcionais e reinicia o n8n para
+O script importa os 34, publica 32, despublica os 2 opcionais e reinicia o n8n para
 consolidar os webhooks.
 
 ## Credenciais fixas
@@ -58,5 +60,8 @@ seguem como placeholders, sem OAuth configurado.
 - os exports nao carregam tags: a importacao via CLI falha se a tag nao existir no n8n
 - o SHA-256 usado nos Code nodes e uma implementacao pura em JavaScript, porque o sandbox do
   n8n nao expoe `crypto` nem `require('node:crypto')`
+- cada workflow publico grava duracao, resultado e codigo de erro em `ops.metrics_events`
+- `sdr.agent.metrics` recebe somente provedor, modelo, duracao, resultado e TTFB; nunca recebe
+  prompt, resposta, telefone ou e-mail
 
 Nenhum export contem token real.
