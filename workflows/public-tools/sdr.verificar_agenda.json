@@ -60,7 +60,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT api.verificar_agenda(convert_from(decode($1, 'base64'), 'UTF8')::jsonb) AS result;",
+        "query": "WITH input AS MATERIALIZED (\n  SELECT convert_from(decode($1, 'base64'), 'UTF8')::jsonb AS payload, clock_timestamp() AS started_at\n), called AS MATERIALIZED (\n  SELECT api.verificar_agenda(input.payload) AS result FROM input\n), logged AS (\n  INSERT INTO ops.metrics_events(metric_name, metric_value, dimensions)\n  SELECT 'tool_call',\n         EXTRACT(EPOCH FROM (clock_timestamp() - input.started_at)) * 1000,\n         jsonb_build_object(\n           'tool', 'verificar_agenda',\n           'channel', COALESCE(input.payload ->> 'channel', 'unknown'),\n           'ok', COALESCE((called.result ->> 'ok')::BOOLEAN, FALSE),\n           'error_code', called.result #>> '{error,code}'\n         )\n  FROM input, called\n  RETURNING metric_event_id\n)\nSELECT called.result FROM called CROSS JOIN (SELECT count(*) FROM logged) metric_guard;",
         "options": {
           "queryReplacement": "={{[$json.sql_payload_base64]}}"
         }

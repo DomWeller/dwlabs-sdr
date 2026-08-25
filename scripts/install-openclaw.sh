@@ -153,6 +153,10 @@ configure_plugin() {
   local plugin_config_json="$1"
   docker_exec "${OPENCLAW_CONTAINER}" \
     openclaw config set plugins.entries.dwlabs-sdr-tools.config "${plugin_config_json}" --strict-json >/dev/null
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set plugins.entries.dwlabs-sdr-tools.hooks.allowPromptInjection 'true' --strict-json >/dev/null
+  docker_exec "${OPENCLAW_CONTAINER}" \
+    openclaw config set plugins.entries.dwlabs-sdr-tools.hooks.timeouts.before_prompt_build '6000' --strict-json >/dev/null
 }
 
 merge_json_arrays() {
@@ -214,7 +218,7 @@ set_agent_identity() {
 }
 
 sdr_tools_json='["buscar_servicos","buscar_servico","buscar_precos","buscar_portfolio","salvar_lead","atualizar_lead","buscar_lead","buscar_cliente","registrar_interacao","calcular_score","verificar_agenda","agendar_reuniao","reagendar_reuniao","cancelar_reuniao","criar_resumo","notificar_vendedor","agendar_followup","cancelar_followup","buscar_conhecimento","transcrever_audio","transferir_humano","sincronizar_sheets"]'
-plugin_allowlist_json='["dwlabs-sdr/buscar-servicos","dwlabs-sdr/buscar-servico","dwlabs-sdr/buscar-precos","dwlabs-sdr/buscar-portfolio","dwlabs-sdr/salvar-lead","dwlabs-sdr/atualizar-lead","dwlabs-sdr/buscar-lead","dwlabs-sdr/buscar-cliente","dwlabs-sdr/registrar-interacao","dwlabs-sdr/calcular-score","dwlabs-sdr/verificar-agenda","dwlabs-sdr/agendar-reuniao","dwlabs-sdr/reagendar-reuniao","dwlabs-sdr/cancelar-reuniao","dwlabs-sdr/criar-resumo","dwlabs-sdr/notificar-vendedor","dwlabs-sdr/agendar-followup","dwlabs-sdr/cancelar-followup","dwlabs-sdr/buscar-conhecimento","dwlabs-sdr/transcrever-audio","dwlabs-sdr/transferir-humano","dwlabs-sdr/sincronizar-sheets"]'
+plugin_allowlist_json='["dwlabs-sdr/buscar-servicos","dwlabs-sdr/buscar-servico","dwlabs-sdr/buscar-precos","dwlabs-sdr/buscar-portfolio","dwlabs-sdr/salvar-lead","dwlabs-sdr/atualizar-lead","dwlabs-sdr/buscar-lead","dwlabs-sdr/buscar-cliente","dwlabs-sdr/registrar-interacao","dwlabs-sdr/calcular-score","dwlabs-sdr/verificar-agenda","dwlabs-sdr/agendar-reuniao","dwlabs-sdr/reagendar-reuniao","dwlabs-sdr/cancelar-reuniao","dwlabs-sdr/criar-resumo","dwlabs-sdr/notificar-vendedor","dwlabs-sdr/agendar-followup","dwlabs-sdr/cancelar-followup","dwlabs-sdr/buscar-conhecimento","dwlabs-sdr/transcrever-audio","dwlabs-sdr/transferir-humano","dwlabs-sdr/sincronizar-sheets","dwlabs-sdr/agent-metrics"]'
 deny_tools_json='["group:runtime","group:fs","group:automation","group:web","group:ui","group:messaging","group:memory","group:sessions","group:media","group:nodes","group:agents","http","gateway","config","plugins_admin","debug"]'
 plugin_config_json="$(printf '{"baseUrl":"%s","bearerToken":{"source":"env","provider":"default","id":"SDR_N8N_TOKEN"},"timeoutMs":%s,"allowlist":%s}' "${OPENCLAW_PLUGIN_BASE_URL}" "${OPENCLAW_PLUGIN_TIMEOUT_MS}" "${plugin_allowlist_json}")"
 

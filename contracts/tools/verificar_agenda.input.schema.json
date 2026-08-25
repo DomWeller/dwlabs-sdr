@@ -88,6 +88,9 @@
         },
         "service_type": {
           "type": "string"
+        },
+        "fixture_mode": {
+          "type": "boolean"
         }
       },
       "required": [

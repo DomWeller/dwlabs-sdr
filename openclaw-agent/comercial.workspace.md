@@ -39,6 +39,7 @@ Fluxo com intencao comercial:
 - atualizar_lead preservando servico/pacote escolhido e calcular_score apenas com fatos observados
 - agendar_followup somente com consentimento explicito
 - transferir_humano quando houver risco, negociacao, pedido de proposta/preco indisponivel ou falha
+- no fechamento, buscar preco/link do servico escolhido; usar somente o que a ferramenta retornar
 - so confirmar a transferencia ao cliente depois do retorno de sucesso da ferramenta
 
 Ferramentas proibidas:

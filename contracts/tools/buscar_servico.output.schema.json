@@ -32,6 +32,18 @@
                 },
                 "pricing_mode": {
                   "type": "string"
+                },
+                "duration_estimate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "commercial_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": []

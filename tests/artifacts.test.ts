@@ -225,9 +225,37 @@ describe("artifact safeguards", () => {
     expect(migration).toContain("'queued', 'retry', 'claimed'");
     expect(migration).toContain("'handoff', (");
     expect(plugin).toContain('api.on(\n    "inbound_claim"');
+    expect(plugin).toContain('event.channel !== "whatsapp"');
+    expect(plugin).toContain('"before_prompt_build"');
+    expect(plugin).toContain('"model_call_ended"');
+    expect(plugin).toContain("CONTEXTO CRM CONFIAVEL DO PROPRIO CONTATO");
     expect(plugin).toContain("return { handled: true }");
     expect(plugin).toContain("ACTIVE_HANDOFF_FAILURE_GRACE_MS");
-    expect(lib).toContain("core.services, core.handoffs, ops.runtime_flags");
+    expect(lib).toContain("core.leads, core.handoffs, ops.runtime_flags");
+  });
+
+  it("ships administrable CRM, pricing and observability with a functional rollback", () => {
+    const up = readFileSync(path.join(rootDir, "database/migrations/006_admin_observability_crm.up.sql"), "utf8");
+    const down = readFileSync(path.join(rootDir, "database/migrations/006_admin_observability_crm.down.sql"), "utf8");
+    const admin = readFileSync(path.join(rootDir, "apps/admin/server.mjs"), "utf8");
+    const lib = readFileSync(path.join(rootDir, "scripts/lib.sh"), "utf8");
+    const workflowBuilder = readFileSync(path.join(rootDir, "src/lib/workflow-builder.ts"), "utf8");
+
+    for (const expected of ["core.score_rules", "core.business_hours", "commercial_url", "service_interests", "acquisition_channels"]) {
+      expect(up).toContain(expected);
+    }
+    for (const restored of ["ops.calculate_score_from_payload", "api.buscar_servicos", "api.buscar_precos", "api.atualizar_lead", "api.buscar_lead", "api.criar_resumo"]) {
+      expect(down).toContain(`CREATE OR REPLACE FUNCTION ${restored}`);
+    }
+    expect(admin).toContain('action="/services/save"');
+    expect(admin).toContain('action="/score-rules/save"');
+    expect(admin).toContain('action="/privacy/request"');
+    expect(admin).toContain("async function transaction(work)");
+    expect(lib).toContain("core.score_rules, core.business_hours");
+    expect(workflowBuilder).toContain("INSERT INTO ops.metrics_events");
+    const internalMetrics = readFileSync(path.join(rootDir, "workflows/internal/sdr.agent.metrics.json"), "utf8");
+    expect(internalMetrics).toContain("dwlabs-sdr/agent-metrics");
+    expect(internalMetrics).not.toContain("assistantTexts");
   });
 
   it("requires an explicit owner-only confirmation before changing WhatsApp routing", () => {

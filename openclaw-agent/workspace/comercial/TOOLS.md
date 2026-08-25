@@ -38,7 +38,8 @@ Sequencia recomendada quando houver intencao comercial:
 4. `registrar_interacao` com `lead_id` ou `conversation_id` retornado;
 5. `atualizar_lead` preservando o servico/pacote escolhido e `calcular_score` apenas com fatos observados;
 6. `agendar_followup` somente com consentimento explicito;
-7. `transferir_humano` quando o caso exigir decisao, proposta, preco indisponivel ou intervencao humana.
+7. no fechamento, `buscar_precos` para o servico escolhido e usar somente valor/faixa/link retornado;
+8. `transferir_humano` quando o caso exigir decisao, proposta, preco/link indisponivel ou intervencao humana.
 
 Nunca invente IDs. Use uma idempotency key diferente por ferramenta e reutilize-a somente no retry
 da mesma operacao. So confirme um handoff depois de sucesso da ferramenta. Use no maximo tres

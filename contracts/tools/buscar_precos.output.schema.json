@@ -20,6 +20,12 @@
                   "service_id": {
                     "type": "string"
                   },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
                   "pricing_mode": {
                     "type": "string"
                   },
@@ -38,12 +44,26 @@
                   "currency": {
                     "type": "string"
                   },
+                  "duration_estimate": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "commercial_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "sob_consulta": {
                     "type": "boolean"
                   }
                 },
                 "required": [
                   "service_id",
+                  "slug",
+                  "name",
                   "pricing_mode",
                   "price_from",
                   "price_to",

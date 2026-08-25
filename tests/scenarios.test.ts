@@ -34,6 +34,8 @@ describe("20 mandatory SDR scenarios", () => {
 
   it("5 audio", () => {
     expect(simulateAudioProvider(false)).toEqual({ ok: false, code: "AUDIO_PROVIDER_DISABLED" });
+    expect(simulateAudioProvider(false, "fixture://audio-ptbr-comercial")).toMatchObject({ ok: true, providerStatus: "fixture" });
+    expect(simulateAudioProvider(true)).toEqual({ ok: false, code: "AUDIO_ADAPTER_NOT_CONFIGURED" });
   });
 
   it("6 mensagens picadas", () => {

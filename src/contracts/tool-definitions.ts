@@ -119,6 +119,8 @@ export const toolDefinitions: ToolDefinition[] = [
             name: { type: "string" },
             summary: { type: "string" },
             pricing_mode: { type: "string" },
+            duration_estimate: { type: ["string", "null"] },
+            commercial_url: { type: ["string", "null"] },
             upsells: stringArray("Upsells possiveis")
           },
           ["service_id", "slug", "name", "summary", "pricing_mode", "upsells"]
@@ -144,7 +146,9 @@ export const toolDefinitions: ToolDefinition[] = [
         name: { type: "string" },
         summary: { type: "string" },
         qualification_hint: { type: "string" },
-        pricing_mode: { type: "string" }
+        pricing_mode: { type: "string" },
+        duration_estimate: { type: ["string", "null"] },
+        commercial_url: { type: ["string", "null"] }
       })
     })
   },
@@ -163,13 +167,17 @@ export const toolDefinitions: ToolDefinition[] = [
         items: strictObject(
           {
             service_id: { type: "string" },
+            slug: { type: "string" },
+            name: { type: "string" },
             pricing_mode: { type: "string" },
             price_from: { type: ["number", "null"] },
             price_to: { type: ["number", "null"] },
             currency: { type: "string" },
+            duration_estimate: { type: ["string", "null"] },
+            commercial_url: { type: ["string", "null"] },
             sob_consulta: { type: "boolean" }
           },
-          ["service_id", "pricing_mode", "price_from", "price_to", "currency", "sob_consulta"]
+          ["service_id", "slug", "name", "pricing_mode", "price_from", "price_to", "currency", "sob_consulta"]
         )
       }
     })
@@ -240,6 +248,17 @@ export const toolDefinitions: ToolDefinition[] = [
         indicative_budget: { type: "string" },
         urgency: { type: "string" },
         origin: { type: "string" },
+        segment: { type: "string" },
+        city: { type: "string" },
+        objective: { type: "string" },
+        problem_summary: { type: "string" },
+        service_interests: stringArray("Servicos de interesse confirmados"),
+        deadline: { type: "string" },
+        acquisition_channels: stringArray("Canais atuais de aquisicao"),
+        has_google_business: { type: "boolean" },
+        has_crm: { type: "boolean" },
+        team_size: { type: "integer", minimum: 0 },
+        notes: { type: "string" },
         tags: stringArray("Tags do lead"),
         owner: { type: "string" }
       },
@@ -268,6 +287,17 @@ export const toolDefinitions: ToolDefinition[] = [
         score: { type: "integer" },
         temperature_band: { type: "string" },
         needs: stringArray("Necessidades resumidas"),
+        segment: { type: ["string", "null"] },
+        city: { type: ["string", "null"] },
+        objective: { type: ["string", "null"] },
+        problem_summary: { type: ["string", "null"] },
+        service_interests: stringArray("Servicos de interesse confirmados"),
+        deadline: { type: ["string", "null"] },
+        acquisition_channels: stringArray("Canais atuais de aquisicao"),
+        has_google_business: { type: ["boolean", "null"] },
+        has_crm: { type: ["boolean", "null"] },
+        team_size: { type: ["integer", "null"] },
+        tags: stringArray("Tags do lead"),
         handoff: {
           anyOf: [
             strictObject(
@@ -370,7 +400,8 @@ export const toolDefinitions: ToolDefinition[] = [
       start_at: { type: "string", format: "date-time" },
       end_at: { type: "string", format: "date-time" },
       duration_minutes: { type: "integer", minimum: 15, maximum: 180 },
-      service_type: { type: "string" }
+      service_type: { type: "string" },
+      fixture_mode: { type: "boolean" }
     }, ["start_at", "end_at", "duration_minutes"]),
     dataSchema: strictObject({
       slots: {
@@ -384,7 +415,8 @@ export const toolDefinitions: ToolDefinition[] = [
           ["starts_at", "ends_at", "channel"]
         )
       },
-      integration_status: { type: "string" }
+      integration_status: { type: "string" },
+      dispatch_required: { type: "boolean" }
     }, ["slots", "integration_status"])
   },
   {

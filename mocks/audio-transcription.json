@@ -1,5 +1,6 @@
 {
-  "provider": "disabled",
-  "status": "AUDIO_PROVIDER_DISABLED",
-  "transcript": null
+  "provider": "fixture",
+  "audio_ref": "fixture://audio-ptbr-comercial",
+  "status": "ok",
+  "transcript": "Quero automatizar o atendimento da minha loja pelo WhatsApp e integrar com o CRM."
 }

@@ -65,6 +65,7 @@ copy_into_container "${tmp_dir}/credentials" "${N8N_CONTAINER}" "${container_tmp
 copy_into_container "${tmp_dir}/workflows/public-tools" "${N8N_CONTAINER}" "${container_tmp}/public-tools"
 copy_into_container "${tmp_dir}/workflows/subworkflows" "${N8N_CONTAINER}" "${container_tmp}/subworkflows"
 copy_into_container "${tmp_dir}/workflows/schedulers" "${N8N_CONTAINER}" "${container_tmp}/schedulers"
+copy_into_container "${tmp_dir}/workflows/internal" "${N8N_CONTAINER}" "${container_tmp}/internal"
 
 log "Importando credenciais n8n com IDs fixos"
 docker_exec "${N8N_CONTAINER}" n8n import:credentials \
@@ -87,6 +88,11 @@ docker_exec "${N8N_CONTAINER}" n8n import:workflow \
 docker_exec "${N8N_CONTAINER}" n8n import:workflow \
   --separate \
   --input="${container_tmp}/schedulers" \
+  --projectId="${N8N_PROJECT_ID}" \
+  --activeState=false >/dev/null
+docker_exec "${N8N_CONTAINER}" n8n import:workflow \
+  --separate \
+  --input="${container_tmp}/internal" \
   --projectId="${N8N_PROJECT_ID}" \
   --activeState=false >/dev/null
 

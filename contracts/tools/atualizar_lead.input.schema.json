@@ -95,6 +95,48 @@
         "origin": {
           "type": "string"
         },
+        "segment": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "problem_summary": {
+          "type": "string"
+        },
+        "service_interests": {
+          "type": "array",
+          "description": "Servicos de interesse confirmados",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deadline": {
+          "type": "string"
+        },
+        "acquisition_channels": {
+          "type": "array",
+          "description": "Canais atuais de aquisicao",
+          "items": {
+            "type": "string"
+          }
+        },
+        "has_google_business": {
+          "type": "boolean"
+        },
+        "has_crm": {
+          "type": "boolean"
+        },
+        "team_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notes": {
+          "type": "string"
+        },
         "tags": {
           "type": "array",
           "description": "Tags do lead",

@@ -259,7 +259,9 @@ apply_specialized_database_grants() {
 GRANT CONNECT ON DATABASE "${POSTGRES_DB}" TO "${POSTGRES_ADMIN_USER}", "${POSTGRES_DISPATCHER_USER}";
 GRANT USAGE ON SCHEMA core, rag, ops, audit TO "${POSTGRES_ADMIN_USER}";
 GRANT SELECT ON ALL TABLES IN SCHEMA core, rag, ops, audit TO "${POSTGRES_ADMIN_USER}";
-GRANT UPDATE ON core.services, core.handoffs, ops.runtime_flags TO "${POSTGRES_ADMIN_USER}";
+GRANT INSERT, UPDATE ON core.services, core.portfolio_items, core.qualification_questions, core.score_rules, core.business_hours, rag.knowledge_documents, rag.knowledge_chunks TO "${POSTGRES_ADMIN_USER}";
+GRANT UPDATE ON core.leads, core.handoffs, ops.runtime_flags TO "${POSTGRES_ADMIN_USER}";
+GRANT INSERT ON ops.privacy_requests TO "${POSTGRES_ADMIN_USER}";
 GRANT INSERT ON audit.admin_change_log TO "${POSTGRES_ADMIN_USER}";
 GRANT USAGE ON SCHEMA ops TO "${POSTGRES_DISPATCHER_USER}";
 REVOKE ALL ON ALL TABLES IN SCHEMA core, rag, ops, audit FROM "${POSTGRES_DISPATCHER_USER}";
@@ -359,6 +361,7 @@ workflow_json_files() {
 active_workflow_json_files() {
   find "${ROOT_DIR}/workflows/public-tools" -type f -name '*.json' | sort
   find "${ROOT_DIR}/workflows/subworkflows" -type f -name '*.json' | sort
+  find "${ROOT_DIR}/workflows/internal" -type f -name '*.json' | sort
   printf '%s\n' "${ROOT_DIR}/workflows/schedulers/sdr.health.selfcheck.json"
 }
 

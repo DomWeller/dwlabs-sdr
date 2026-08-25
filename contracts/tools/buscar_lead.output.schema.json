@@ -34,6 +34,75 @@
                     "type": "string"
                   }
                 },
+                "segment": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "city": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "objective": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "problem_summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "service_interests": {
+                  "type": "array",
+                  "description": "Servicos de interesse confirmados",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "deadline": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "acquisition_channels": {
+                  "type": "array",
+                  "description": "Canais atuais de aquisicao",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "has_google_business": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "has_crm": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "team_size": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "tags": {
+                  "type": "array",
+                  "description": "Tags do lead",
+                  "items": {
+                    "type": "string"
+                  }
+                },
                 "handoff": {
                   "anyOf": [
                     {

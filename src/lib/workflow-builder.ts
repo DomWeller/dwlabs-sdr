@@ -253,7 +253,24 @@ export function buildPublicWorkflow(tool: ToolDefinition): N8nWorkflow {
   const unwrapName = "Unwrap Result";
   const responseName = "Reply";
 
-  const sqlExpression = `SELECT ${tool.sqlFunction}(convert_from(decode($1, 'base64'), 'UTF8')::jsonb) AS result;`;
+  const sqlExpression = `WITH input AS MATERIALIZED (
+  SELECT convert_from(decode($1, 'base64'), 'UTF8')::jsonb AS payload, clock_timestamp() AS started_at
+), called AS MATERIALIZED (
+  SELECT ${tool.sqlFunction}(input.payload) AS result FROM input
+), logged AS (
+  INSERT INTO ops.metrics_events(metric_name, metric_value, dimensions)
+  SELECT 'tool_call',
+         EXTRACT(EPOCH FROM (clock_timestamp() - input.started_at)) * 1000,
+         jsonb_build_object(
+           'tool', '${tool.toolName}',
+           'channel', COALESCE(input.payload ->> 'channel', 'unknown'),
+           'ok', COALESCE((called.result ->> 'ok')::BOOLEAN, FALSE),
+           'error_code', called.result #>> '{error,code}'
+         )
+  FROM input, called
+  RETURNING metric_event_id
+)
+SELECT called.result FROM called CROSS JOIN (SELECT count(*) FROM logged) metric_guard;`;
 
   const nodes: N8nNode[] = [
     {
@@ -443,6 +460,101 @@ export function buildScheduler(name: string): N8nWorkflow {
     settings: {
       executionOrder: "v1"
     },
+    pinData: {},
+    tags: [],
+    active: false,
+    versionId: stableUuid(`${name}:version`)
+  };
+}
+
+export function buildInternalMetricsWorkflow(): N8nWorkflow {
+  const name = "sdr.agent.metrics";
+  const nodes: N8nNode[] = [
+    {
+      id: stableUuid(`${name}:webhook`),
+      webhookId: stableUuid(`${name}:webhook-id`),
+      name: "Receive Metric",
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 2.1,
+      position: [220, 300],
+      parameters: {
+        httpMethod: "POST",
+        path: "dwlabs-sdr/agent-metrics",
+        authentication: "headerAuth",
+        responseMode: "responseNode",
+        options: { responseHeaders: { entries: [{ name: "Content-Type", value: "application/json" }] } }
+      },
+      credentials: { httpHeaderAuth: { ...HEADER_AUTH_CREDENTIAL } }
+    },
+    {
+      id: stableUuid(`${name}:normalize`),
+      name: "Validate Metric",
+      type: "n8n-nodes-base.code",
+      typeVersion: 2,
+      position: [520, 300],
+      parameters: {
+        language: "javaScript",
+        jsCode: [
+          "const headers = Object.fromEntries(Object.entries($json.headers ?? {}).map(([key, value]) => [String(key).toLowerCase(), value]));",
+          "const body = $json.body ?? {};",
+          "const payload = body.payload ?? {};",
+          "const allowedChannels = new Set(['whatsapp', 'instagram', 'site', 'test', 'internal']);",
+          "if (headers['x-agent-id'] !== 'comercial') throw new Error('AGENT_FORBIDDEN');",
+          "if (!allowedChannels.has(String(body.channel))) throw new Error('CHANNEL_FORBIDDEN');",
+          "if (payload.metric_name !== 'model_call') throw new Error('METRIC_FORBIDDEN');",
+          "const durationMs = Number(payload.duration_ms);",
+          "if (!Number.isFinite(durationMs) || durationMs < 0 || durationMs > 900000) throw new Error('METRIC_VALUE_INVALID');",
+          "const safe = { metric_name: 'model_call', duration_ms: durationMs, channel: String(body.channel), provider: String(payload.provider ?? 'unknown').slice(0,80), model: String(payload.model ?? 'unknown').slice(0,120), outcome: payload.outcome === 'completed' ? 'completed' : 'error', error_category: payload.error_category ? String(payload.error_category).slice(0,80) : null, time_to_first_byte_ms: Number.isFinite(Number(payload.time_to_first_byte_ms)) ? Number(payload.time_to_first_byte_ms) : null };",
+          "return [{ json: { metric_payload_base64: Buffer.from(JSON.stringify(safe), 'utf8').toString('base64') } }];"
+        ].join("\n")
+      }
+    },
+    {
+      id: stableUuid(`${name}:insert`),
+      name: "Store Metric",
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [830, 300],
+      parameters: {
+        operation: "executeQuery",
+        query: `WITH input AS (
+  SELECT convert_from(decode($1, 'base64'), 'UTF8')::jsonb AS payload
+), inserted AS (
+  INSERT INTO ops.metrics_events(metric_name, metric_value, dimensions)
+  SELECT 'model_call',
+         (payload ->> 'duration_ms')::NUMERIC,
+         jsonb_build_object(
+           'channel', payload ->> 'channel',
+           'provider', payload ->> 'provider',
+           'model', payload ->> 'model',
+           'outcome', payload ->> 'outcome',
+           'error_category', payload ->> 'error_category',
+           'time_to_first_byte_ms', payload ->> 'time_to_first_byte_ms'
+         )
+  FROM input
+  RETURNING metric_event_id
+)
+SELECT jsonb_build_object('ok',TRUE,'stored',TRUE) AS result FROM inserted;`,
+        options: { queryReplacement: "={{[$json.metric_payload_base64]}}" }
+      },
+      credentials: { postgres: { ...POSTGRES_CREDENTIAL } }
+    },
+    {
+      id: stableUuid(`${name}:reply`),
+      name: "Reply",
+      type: "n8n-nodes-base.respondToWebhook",
+      typeVersion: 1.4,
+      position: [1130, 300],
+      parameters: { respondWith: "json", responseBody: "={{ $json.result ?? $json }}", options: { responseCode: 200 } }
+    }
+  ];
+
+  return {
+    id: stableUuid(`${name}:workflow`),
+    name,
+    nodes,
+    connections: buildConnections(nodes.map((node) => node.name)),
+    settings: { executionOrder: "v1" },
     pinData: {},
     tags: [],
     active: false,

@@ -1,0 +1,135 @@
+{
+  "id": "3b65a707-04e8-609f-2245-8c78e023393e",
+  "name": "sdr.agent.metrics",
+  "nodes": [
+    {
+      "id": "b7118afe-be12-cdc9-d68e-ea413fa12f4a",
+      "webhookId": "2ad64077-168f-f450-81f6-c6d89b6f6cde",
+      "name": "Receive Metric",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dwlabs-sdr/agent-metrics",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "DWLABS_SDR_HEADER_AUTH",
+          "name": "DWLabs SDR Header Auth"
+        }
+      }
+    },
+    {
+      "id": "d34f3505-abc9-fe12-bd20-d12647ac0201",
+      "name": "Validate Metric",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const headers = Object.fromEntries(Object.entries($json.headers ?? {}).map(([key, value]) => [String(key).toLowerCase(), value]));\nconst body = $json.body ?? {};\nconst payload = body.payload ?? {};\nconst allowedChannels = new Set(['whatsapp', 'instagram', 'site', 'test', 'internal']);\nif (headers['x-agent-id'] !== 'comercial') throw new Error('AGENT_FORBIDDEN');\nif (!allowedChannels.has(String(body.channel))) throw new Error('CHANNEL_FORBIDDEN');\nif (payload.metric_name !== 'model_call') throw new Error('METRIC_FORBIDDEN');\nconst durationMs = Number(payload.duration_ms);\nif (!Number.isFinite(durationMs) || durationMs < 0 || durationMs > 900000) throw new Error('METRIC_VALUE_INVALID');\nconst safe = { metric_name: 'model_call', duration_ms: durationMs, channel: String(body.channel), provider: String(payload.provider ?? 'unknown').slice(0,80), model: String(payload.model ?? 'unknown').slice(0,120), outcome: payload.outcome === 'completed' ? 'completed' : 'error', error_category: payload.error_category ? String(payload.error_category).slice(0,80) : null, time_to_first_byte_ms: Number.isFinite(Number(payload.time_to_first_byte_ms)) ? Number(payload.time_to_first_byte_ms) : null };\nreturn [{ json: { metric_payload_base64: Buffer.from(JSON.stringify(safe), 'utf8').toString('base64') } }];"
+      }
+    },
+    {
+      "id": "5f0a2fa8-4d2f-0668-75aa-7966715e793a",
+      "name": "Store Metric",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        830,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH input AS (\n  SELECT convert_from(decode($1, 'base64'), 'UTF8')::jsonb AS payload\n), inserted AS (\n  INSERT INTO ops.metrics_events(metric_name, metric_value, dimensions)\n  SELECT 'model_call',\n         (payload ->> 'duration_ms')::NUMERIC,\n         jsonb_build_object(\n           'channel', payload ->> 'channel',\n           'provider', payload ->> 'provider',\n           'model', payload ->> 'model',\n           'outcome', payload ->> 'outcome',\n           'error_category', payload ->> 'error_category',\n           'time_to_first_byte_ms', payload ->> 'time_to_first_byte_ms'\n         )\n  FROM input\n  RETURNING metric_event_id\n)\nSELECT jsonb_build_object('ok',TRUE,'stored',TRUE) AS result FROM inserted;",
+        "options": {
+          "queryReplacement": "={{[$json.metric_payload_base64]}}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "DWLABS_SDR_POSTGRES_ID",
+          "name": "DWLABS_SDR_POSTGRES"
+        }
+      }
+    },
+    {
+      "id": "ecfe9a08-60d1-1d30-f295-f1097fb60ac8",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1130,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.result ?? $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Metric": {
+      "main": [
+        [
+          {
+            "node": "Validate Metric",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Metric": {
+      "main": [
+        [
+          {
+            "node": "Store Metric",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Metric": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [],
+  "active": false,
+  "versionId": "f72958a6-026a-75e0-b1d8-c9aa86b873ef"
+}

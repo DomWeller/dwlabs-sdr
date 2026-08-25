@@ -107,12 +107,14 @@ export function contextualFollowup(name: string | undefined, serviceSlug: string
   return `${greeting} retomei seu contexto sobre ${serviceSlug}. Se fizer sentido, posso organizar o proximo passo comercial sem repetir o que voce ja explicou.`;
 }
 
-export function simulateAudioProvider(enabled: boolean): { ok: boolean; code?: string } {
+export function simulateAudioProvider(enabled: boolean, audioRef?: string): { ok: boolean; code?: string; transcript?: string; providerStatus?: string } {
+  if (audioRef === "fixture://audio-ptbr-comercial") {
+    return { ok: true, transcript: "Quero automatizar o atendimento da minha loja pelo WhatsApp e integrar com o CRM.", providerStatus: "fixture" };
+  }
   if (!enabled) {
     return { ok: false, code: "AUDIO_PROVIDER_DISABLED" };
   }
-
-  return { ok: true };
+  return { ok: false, code: "AUDIO_ADAPTER_NOT_CONFIGURED" };
 }
 
 export function scoreLead(facts: ScoreFacts): number {

@@ -138,7 +138,8 @@ const defaultAllowlist = [
   "dwlabs-sdr/buscar-conhecimento",
   "dwlabs-sdr/transcrever-audio",
   "dwlabs-sdr/transferir-humano",
-  "dwlabs-sdr/sincronizar-sheets"
+  "dwlabs-sdr/sincronizar-sheets",
+  "dwlabs-sdr/agent-metrics"
 ];
 
 const payloadSchemas = {
@@ -187,6 +188,17 @@ const payloadSchemas = {
       indicative_budget: Type.Optional(Type.String()),
       urgency: Type.Optional(Type.String()),
       origin: Type.Optional(Type.String()),
+      segment: Type.Optional(Type.String()),
+      city: Type.Optional(Type.String()),
+      objective: Type.Optional(Type.String()),
+      problem_summary: Type.Optional(Type.String()),
+      service_interests: Type.Optional(Type.Array(Type.String())),
+      deadline: Type.Optional(Type.String()),
+      acquisition_channels: Type.Optional(Type.Array(Type.String())),
+      has_google_business: Type.Optional(Type.Boolean()),
+      has_crm: Type.Optional(Type.Boolean()),
+      team_size: Type.Optional(Type.Integer({ minimum: 0 })),
+      notes: Type.Optional(Type.String()),
       tags: Type.Optional(Type.Array(Type.String())),
       owner: Type.Optional(Type.String())
     },
@@ -223,7 +235,8 @@ const payloadSchemas = {
       start_at: Type.String(),
       end_at: Type.String(),
       duration_minutes: Type.Integer(),
-      service_type: Type.Optional(Type.String())
+      service_type: Type.Optional(Type.String()),
+      fixture_mode: Type.Optional(Type.Boolean())
     },
     { additionalProperties: false }
   ),
@@ -417,6 +430,37 @@ export function hasActiveHandoff(response: unknown): boolean {
   return ["open", "acknowledged"].includes(String((handoff as Record<string, unknown>).status));
 }
 
+export function leadFromResponse(response: unknown): Record<string, unknown> | null {
+  if (!response || typeof response !== "object") return null;
+  const root = response as Record<string, unknown>;
+  if (root.ok !== true || !root.data || typeof root.data !== "object") return null;
+  const lead = (root.data as Record<string, unknown>).lead;
+  return lead && typeof lead === "object" && !Array.isArray(lead) ? lead as Record<string, unknown> : null;
+}
+
+function buildLeadLookupEnvelope(phone: string, messageId?: string) {
+  const requestId = randomUUID();
+  return {
+    request_id: requestId,
+    idempotency_key: `lead-context:${createHash("sha256").update(`${messageId ?? requestId}:${phone}`).digest("hex")}`,
+    channel: "whatsapp",
+    actor: { phone },
+    context: { message_id: messageId ?? requestId },
+    payload: { phone }
+  };
+}
+
+async function lookupLeadForSender(senderId: string, messageId: string | undefined, config: PluginConfig): Promise<Record<string, unknown> | null> {
+  const phone = normalizeWhatsAppSenderId(senderId);
+  if (!phone) return null;
+  const response = await callWorkflow(
+    "dwlabs-sdr/buscar-lead",
+    buildLeadLookupEnvelope(phone, messageId),
+    { ...config, timeoutMs: Math.min(config.timeoutMs ?? 8000, 5000) }
+  );
+  return leadFromResponse(response);
+}
+
 async function shouldClaimForHumanHandoff(
   senderId: string,
   messageId: string | undefined,
@@ -425,23 +469,10 @@ async function shouldClaimForHumanHandoff(
   const phone = normalizeWhatsAppSenderId(senderId);
   if (!phone) return false;
   const cacheKey = senderCacheKey(phone);
-  const requestId = randomUUID();
-  const envelope = {
-    request_id: requestId,
-    idempotency_key: `handoff-guard:${createHash("sha256").update(`${messageId ?? requestId}:${phone}`).digest("hex")}`,
-    channel: "whatsapp",
-    actor: { phone },
-    context: { message_id: messageId ?? requestId },
-    payload: { phone }
-  };
 
   try {
-    const response = await callWorkflow(
-      "dwlabs-sdr/buscar-lead",
-      envelope,
-      { ...config, timeoutMs: Math.min(config.timeoutMs ?? 8000, 5000) }
-    );
-    const active = hasActiveHandoff(response);
+    const lead = await lookupLeadForSender(senderId, messageId, config);
+    const active = hasActiveHandoff({ ok: true, data: { lead } });
     if (active) activeHandoffCache.set(cacheKey, Date.now());
     else activeHandoffCache.delete(cacheKey);
     return active;
@@ -483,13 +514,61 @@ plugin.register = (api) => {
   const config = api.pluginConfig as PluginConfig;
   api.on(
     "inbound_claim",
-    async (_event, context) => {
-      if (context.agentId !== "comercial" || context.channelId !== "whatsapp" || !context.senderId) return;
-      if (await shouldClaimForHumanHandoff(context.senderId, context.messageId, config)) {
+    async (event, context) => {
+      const senderId = event.senderId ?? context.senderId;
+      if (context.agentId !== "comercial" || event.channel !== "whatsapp" || !senderId) return;
+      if (await shouldClaimForHumanHandoff(senderId, event.messageId ?? context.messageId, config)) {
         return { handled: true };
       }
     },
     { priority: 100, timeoutMs: 6000 }
+  );
+  api.on(
+    "before_prompt_build",
+    async (_event, context) => {
+      if (context.agentId !== "comercial" || context.messageProvider !== "whatsapp" || !context.senderId) return;
+      try {
+        const lead = await lookupLeadForSender(context.senderId, context.runId, config);
+        if (!lead || hasActiveHandoff({ ok: true, data: { lead } })) return;
+        return {
+          prependContext: `CONTEXTO CRM CONFIAVEL DO PROPRIO CONTATO (nao repita perguntas ja respondidas):\n${JSON.stringify(lead)}`
+        };
+      } catch {
+        return;
+      }
+    },
+    { priority: 90, timeoutMs: 6000 }
+  );
+  api.on(
+    "model_call_ended",
+    async (event, context) => {
+      if (context.agentId !== "comercial") return;
+      const allowedChannels = new Set(["whatsapp", "instagram", "site", "test"]);
+      const channel = allowedChannels.has(String(context.messageProvider)) ? String(context.messageProvider) : "internal";
+      const requestId = randomUUID();
+      const metricKey = createHash("sha256").update(`${event.runId}:${event.callId}`).digest("hex");
+      try {
+        await callWorkflow("dwlabs-sdr/agent-metrics", {
+          request_id: requestId,
+          idempotency_key: `model-metric:${metricKey}`,
+          channel,
+          actor: {},
+          context: { conversation_id: event.runId },
+          payload: {
+            metric_name: "model_call",
+            duration_ms: event.durationMs,
+            provider: event.provider,
+            model: event.model,
+            outcome: event.outcome,
+            error_category: event.errorCategory ?? null,
+            time_to_first_byte_ms: event.timeToFirstByteMs ?? null
+          }
+        }, { ...config, timeoutMs: Math.min(config.timeoutMs ?? 8000, 3000) });
+      } catch {
+        return;
+      }
+    },
+    { priority: 80, timeoutMs: 4000 }
   );
 };
 

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { schedulerNames, subworkflowNames, toolDefinitions } from "../contracts/tool-definitions.js";
 import { writeJsonFile } from "../lib/files.js";
-import { buildPublicWorkflow, buildScheduler, buildSubworkflow } from "../lib/workflow-builder.js";
+import { buildInternalMetricsWorkflow, buildPublicWorkflow, buildScheduler, buildSubworkflow } from "../lib/workflow-builder.js";
 
 export function generateWorkflows(rootDir: string): void {
   const workflowRoot = path.join(rootDir, "workflows");
@@ -26,4 +26,9 @@ export function generateWorkflows(rootDir: string): void {
       buildScheduler(name)
     );
   }
+
+  writeJsonFile(
+    path.join(workflowRoot, "internal", "sdr.agent.metrics.json"),
+    buildInternalMetricsWorkflow()
+  );
 }

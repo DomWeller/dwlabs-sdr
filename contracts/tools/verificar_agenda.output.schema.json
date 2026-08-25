@@ -38,6 +38,9 @@
             },
             "integration_status": {
               "type": "string"
+            },
+            "dispatch_required": {
+              "type": "boolean"
             }
           },
           "required": [
