@@ -218,4 +218,20 @@ describe("artifact safeguards", () => {
     expect(bootstrap).toContain("discover_whatsapp_owner");
     expect(bootstrap).toContain('upsert_env_value "SDR_PUBLIC_FLAG" "false"');
   });
+
+  it("defines a privacy-minimizing CRM playbook for the commercial agent", () => {
+    const agents = readFileSync(path.join(rootDir, "openclaw-agent/workspace/comercial/AGENTS.md"), "utf8");
+    const tools = readFileSync(path.join(rootDir, "openclaw-agent/workspace/comercial/TOOLS.md"), "utf8");
+    const source = readFileSync(path.join(rootDir, "src/config/agent.ts"), "utf8");
+    for (const text of [agents, source]) {
+      expect(text).toContain("consulta generica");
+      expect(text).toContain("intencao comercial");
+      expect(text).toContain("consentimento explicito");
+      expect(text).toContain("idempotency key");
+    }
+    expect(agents).toContain("nunca invente UUIDs");
+    expect(tools).toContain("Nunca invente IDs");
+    expect(tools).toContain("buscar_lead");
+    expect(tools).toContain("registrar_interacao");
+  });
 });

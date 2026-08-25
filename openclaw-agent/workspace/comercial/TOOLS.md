@@ -30,3 +30,14 @@ Ferramentas negadas por politica:
 - admin e plugins admin
 - gateway, cron e debug
 - HTTP generico e acesso a terceiros fora das ferramentas SDR
+
+Sequencia recomendada quando houver intencao comercial:
+1. `buscar_lead` usando somente o identificador do proprio ator;
+2. `salvar_lead` se ainda nao existir;
+3. `registrar_interacao` com `lead_id` ou `conversation_id` retornado;
+4. `atualizar_lead` e `calcular_score` apenas com fatos observados;
+5. `agendar_followup` somente com consentimento explicito;
+6. `transferir_humano` quando o caso exigir decisao ou intervencao humana.
+
+Nunca invente IDs. Use uma idempotency key diferente por ferramenta e reutilize-a somente no retry
+da mesma operacao.
