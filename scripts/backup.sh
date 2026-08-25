@@ -30,8 +30,7 @@ else
   log "n8n ainda nao possui workflows; exportacao inicial foi pulada."
 fi
 
-cp "${ROOT_DIR}/database/migrations/001_init.up.sql" "${backup_dir}/"
-cp "${ROOT_DIR}/database/migrations/001_init.down.sql" "${backup_dir}/"
+cp "${ROOT_DIR}"/database/migrations/*.sql "${backup_dir}/"
 cp "${ROOT_DIR}/database/seeds/001_seed_catalog.sql" "${backup_dir}/"
 
 if [[ -f "${OPENCLAW_HOST_ENV_FILE}" ]]; then

@@ -162,6 +162,10 @@ describe("artifact safeguards", () => {
 
   it("ships atomic rate limiting, outbox claims and deterministic follow-up stops", () => {
     const migration = readFileSync(path.join(rootDir, "database/migrations/002_operations_hardening.up.sql"), "utf8");
+    const pgcryptoFix = readFileSync(
+      path.join(rootDir, "database/migrations/003_qualify_pgcrypto_digest.up.sql"),
+      "utf8"
+    );
     expect(migration).toContain("ops.check_rate_limit");
     expect(migration).toContain("FOR UPDATE SKIP LOCKED");
     expect(migration).toContain("RATE_LIMITED");
@@ -171,6 +175,8 @@ describe("artifact safeguards", () => {
     expect(migration).toContain("'queued', 'retry', 'claimed'");
     expect(migration).toContain("INTERVAL '72 hours'");
     expect(migration).toContain("SECURITY DEFINER");
+    expect(pgcryptoFix).toContain("public.digest(contact.normalized_phone, 'sha256')");
+    expect(pgcryptoFix).toContain("SET search_path = pg_catalog, core, ops");
     const lib = readFileSync(path.join(rootDir, "scripts/lib.sh"), "utf8");
     expect(lib).toContain("REVOKE ALL ON FUNCTION ops.enqueue_due_followups");
     expect(lib).toContain('FROM PUBLIC, "${POSTGRES_USER}", "${POSTGRES_ADMIN_USER}"');
