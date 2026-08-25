@@ -1,0 +1,160 @@
+{
+  "id": "952b1d79-af57-6a5b-afcc-65c5f9416d8a",
+  "name": "sdr.google-calendar.availability.scheduler",
+  "nodes": [
+    {
+      "id": "bbf3c41b-009f-3b56-6792-d5e81c1e6978",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        130,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d0ac6402-55e4-14b9-7201-baf5c9032272",
+      "name": "Load Calendar Window",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        390,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT metadata ->> 'calendar_id' AS calendar_id,\n       NOW() AS start_at,\n       NOW() + INTERVAL '30 days' AS end_at\nFROM ops.runtime_flags\nWHERE flag_name = 'google_calendar_enabled'\n  AND enabled\n  AND NULLIF(metadata ->> 'calendar_id', '') IS NOT NULL;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "DWLABS_SDR_POSTGRES_ID",
+          "name": "DWLABS_SDR_POSTGRES"
+        }
+      }
+    },
+    {
+      "id": "fd1268ff-16db-0b98-a8dc-c0027daae821",
+      "name": "Execute Availability Adapter",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        670,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "mode": "id",
+          "value": "9f3e5acb-37ca-6bb2-a897-d978e262f4a7"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "be6f21d9-cb13-5325-4875-a235231017fe",
+      "name": "Aggregate Busy Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        950,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const values = $input.all().map((item) => item.json); if (!values.length) throw new Error('CALENDAR_AVAILABILITY_EMPTY_EXECUTION'); const first = values[0]; const busy_slots = values.filter((value) => value.busy_start && value.busy_end).map((value) => ({ start: value.busy_start, end: value.busy_end })); const payload = { calendar_id: first.calendar_id, start_at: first.window_start, end_at: first.window_end, busy_slots }; return [{ json: { cache_payload_base64: Buffer.from(JSON.stringify(payload), 'utf8').toString('base64') } }];"
+      }
+    },
+    {
+      "id": "d6c32784-8dcb-a5e3-de03-2b55ab0c5777",
+      "name": "Replace Busy Cache",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1230,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ops.replace_google_calendar_busy_cache(convert_from(decode($1, 'base64'), 'UTF8')::jsonb) AS replaced;",
+        "options": {
+          "queryReplacement": "={{[$json.cache_payload_base64]}}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "DWLABS_SDR_POSTGRES_ID",
+          "name": "DWLABS_SDR_POSTGRES"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Calendar Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Calendar Window": {
+      "main": [
+        [
+          {
+            "node": "Execute Availability Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Availability Adapter": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Busy Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Busy Slots": {
+      "main": [
+        [
+          {
+            "node": "Replace Busy Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "tags": [],
+  "active": false,
+  "versionId": "9a9b9b56-802b-4e87-98f8-e682ea3ff597"
+}

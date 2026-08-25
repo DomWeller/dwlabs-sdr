@@ -3,7 +3,7 @@
 ## Gates
 
 1. build e validacao local
-2. importacao de workflows (42 importados, 32 publicados, 5 schedulers e 5 adaptadores externos inativos)
+2. importacao de workflows (43 importados, 32 publicados, 6 schedulers e 5 adaptadores externos inativos)
 3. migrations e seed
 4. instalacao do plugin e configuracao do agente `comercial`
 5. testes owner-only
@@ -50,7 +50,7 @@ PostgreSQL               container n8n-postgres, banco dwlabs_sdr
 servicos=13  portfolio=3  leads=0  contatos=0  conversas=0
 schemas: core, rag, ops, audit, api
 
-workflows presentes=42  ativos=32  webhooks publicos=22  webhook interno=1  google_inativos=10
+workflows presentes=43  ativos=32  webhooks publicos=22  webhook interno=1  google/opcionais_inativos=11
 ferramentas do agente comercial=22
 SDR_PUBLIC_FLAG=false  SDR_BIND_WHATSAPP=false
 ```
@@ -63,7 +63,7 @@ SDR_PUBLIC_FLAG=false  SDR_BIND_WHATSAPP=false
 - `scripts/rollback.sh`
 - `scripts/migrate.sh`
 - `scripts/seed.sh`
-- `scripts/import-workflows.sh` — importa 42, publica 32, despublica 5 schedulers e 5 adaptadores, reinicia o n8n
+- `scripts/import-workflows.sh` — importa 43, publica 32, despublica 6 schedulers e 5 adaptadores, reinicia o n8n
 - `scripts/export-workflows.sh`
 - `scripts/install-openclaw.sh` — idempotente; pula reinstalacao se o plugin for identico
 - `scripts/bootstrap-env.sh` — recarrega o `.env` depois de preservar/gerar valores

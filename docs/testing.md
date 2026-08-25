@@ -31,7 +31,7 @@ npm run scan:secrets
 bash scripts/healthcheck.sh
 ```
 
-Ele valida containers, banco, catalogo, OpenClaw, plugin e agente, exige 42 workflows
+Ele valida containers, banco, catalogo, OpenClaw, plugin e agente, exige 43 workflows
 presentes e 32 ativos, e checa os dois comportamentos do webhook:
 
 - chamada sem autenticacao deve retornar HTTP `403` (comportamento nativo do Header Auth)
@@ -93,7 +93,8 @@ Sheets continuam pendentes de credenciais e autorizacao.
 As migrations `001..007` foram aplicadas em banco temporario. A `006` foi reaplicada, revertida e
 aplicada novamente, confirmando score padrao `23` e 21 regras. A `007` foi exercitada com enqueue,
 claim `SKIP LOCKED`, falha/retry, conclusao Calendar/Meet, claim Sheets, preservacao da configuracao
-OAuth num novo seed e rollback funcional. Antes da ativacao OAuth real, ainda e obrigatorio testar
+OAuth num novo seed, cache real com busy slot excluido, rejeicao de cache vencido e rollback funcional.
+Antes da ativacao OAuth real, ainda e obrigatorio testar
 os nodes Google com dados sinteticos e remover os artefatos externos criados.
 
 ## Regressao do relatorio de WhatsApp de 2026-08-25

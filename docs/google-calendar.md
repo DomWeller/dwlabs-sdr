@@ -21,16 +21,21 @@ A integracao real permanece preparada, mas desligada ate configuracao manual de 
   - `workflows/adapters/sdr.google-calendar.create.adapter.json`
   - `workflows/adapters/sdr.google-calendar.update.adapter.json`
   - `workflows/adapters/sdr.google-calendar.delete.adapter.json`
-- dispatchers inativos: `sdr.google-calendar.create.scheduler`,
-  `sdr.google-calendar.update.scheduler` e `sdr.google-calendar.delete.scheduler`
+- dispatchers inativos: `sdr.google-calendar.availability.scheduler`,
+  `sdr.google-calendar.create.scheduler`, `sdr.google-calendar.update.scheduler` e
+  `sdr.google-calendar.delete.scheduler`
 - fila transacional: `ops.calendar_integration_jobs`, criada pela migration `007`
+- cache de disponibilidade: `core.calendar_blocks` + `ops.calendar_sync_state`
 
 Os adaptadores usam o node Google Calendar `1.3` presente no n8n instalado, timezone
 `America/Sao_Paulo`, Google Meet na criacao, atualizacoes enviadas aos convidados e tres
 tentativas. Criar, atualizar e excluir exigem `authorized=true`. Eles sao importados sempre
 inativos e nao sao publicados apenas por mudar uma flag.
 
-Os dispatchers reservam um job com `FOR UPDATE SKIP LOCKED`, usam lease de cinco minutos,
+O dispatcher de disponibilidade atualiza a cada cinco minutos uma janela de 30 dias. A ferramenta
+publica so oferece os slots calculados quando esse cache cobre toda a janela pedida e tem no maximo
+15 minutos; caso contrario retorna `CALENDAR_CACHE_STALE`, sem inventar horario. Os demais
+dispatchers reservam um job com `FOR UPDATE SKIP LOCKED`, usam lease de cinco minutos,
 limitam a tres tentativas e concluem apenas o job reservado. IDs externos, URL do Meet e codigo
 de erro sanitizado ficam no banco; o outbox nao persiste telefone nem e-mail. Se a execucao do
 Google parar, o lease expirado torna o job elegivel novamente, sem publicar automaticamente.
@@ -50,6 +55,6 @@ ocupado da fixture. Fora desse modo, a ausencia de OAuth retorna `CALENDAR_DISAB
 4. executar disponibilidade/criacao/alteracao/exclusao com dados sinteticos owner-only e remover
    os eventos de teste no Google
 5. somente apos conferir os resultados, definir a flag como `true` e publicar os quatro
-   adaptadores mais os tres schedulers Calendar
+   adaptadores mais os quatro schedulers Calendar
 
 Importar ou mudar a flag isoladamente nao publica nenhum workflow Google.

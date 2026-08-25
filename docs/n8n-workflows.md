@@ -12,12 +12,12 @@ integracoes externas ainda nao configuradas.
 - `workflows/internal/`: `sdr.agent.metrics`, webhook autenticado de telemetria sem conteudo de conversa
 - `workflows/adapters/`: disponibilidade/criacao/reagendamento/cancelamento no Calendar/Meet e
   upsert da visao de pipeline no Sheets, todos com nodes Google nativos
-- `workflows/schedulers/`: healthcheck, follow-up, Sheets e tres dispatchers Calendar
+- `workflows/schedulers/`: healthcheck, follow-up, Sheets e quatro dispatchers Calendar
 
 ## Estado esperado depois da importacao
 
 ```text
-workflows presentes = 42
+workflows presentes = 43
 workflows ativos    = 32
 webhooks registrados = 22
 ```
@@ -29,10 +29,10 @@ Ficam **inativos de proposito**:
 
 - `sdr.followup.scheduler` — envio real continua separado e owner-only
 - `sdr.sheets.sync.scheduler` — depende de OAuth, `document_id` e teste controlado
-- tres schedulers Calendar — dependem de OAuth, `calendar_id` e teste controlado
+- quatro schedulers Calendar — dependem de OAuth, `calendar_id` e teste controlado
 - os 5 workflows de `workflows/adapters/` — dependem de OAuth e IDs reais de calendario/planilha
 
-Nao reativar esses dez workflows apenas trocando a flag interna. Antes e preciso ter credenciais,
+Nao reativar esses onze workflows apenas trocando a flag interna. Antes e preciso ter credenciais,
 consentimento, IDs externos e teste controlado. Os dispatchers Google ja possuem claim com lease,
 retry limitado e conclusao idempotente; permanecem despublicados por seguranca.
 
@@ -42,7 +42,7 @@ retry limitado e conclusao idempotente; permanecem despublicados por seguranca.
 bash scripts/import-workflows.sh
 ```
 
-O script importa os 42, publica 32, despublica os 5 schedulers opcionais e os 5 adaptadores, e reinicia o n8n para
+O script importa os 43, publica 32, despublica os 6 schedulers opcionais e os 5 adaptadores, e reinicia o n8n para
 consolidar os webhooks.
 
 ## Credenciais fixas

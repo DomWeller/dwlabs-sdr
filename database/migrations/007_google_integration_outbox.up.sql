@@ -6,6 +6,24 @@ ALTER TABLE core.meetings
   ADD COLUMN IF NOT EXISTS external_sync_error_code TEXT,
   ADD COLUMN IF NOT EXISTS external_sync_updated_at TIMESTAMPTZ;
 
+ALTER TABLE core.calendar_blocks
+  ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual',
+  ADD COLUMN IF NOT EXISTS external_key TEXT,
+  ADD COLUMN IF NOT EXISTS refreshed_at TIMESTAMPTZ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_calendar_blocks_source_external
+  ON core.calendar_blocks (source, external_key);
+
+CREATE TABLE IF NOT EXISTS ops.calendar_sync_state (
+  provider TEXT PRIMARY KEY,
+  coverage_start TIMESTAMPTZ NOT NULL,
+  coverage_end TIMESTAMPTZ NOT NULL,
+  last_success_at TIMESTAMPTZ NOT NULL,
+  last_error_code TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (coverage_end > coverage_start)
+);
+
 CREATE TABLE IF NOT EXISTS ops.calendar_integration_jobs (
   job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   meeting_id UUID NOT NULL REFERENCES core.meetings(meeting_id) ON DELETE CASCADE,
@@ -400,6 +418,166 @@ AS $$
     RETURNING 1
   )
   SELECT EXISTS (SELECT 1 FROM updated)
+$$;
+
+CREATE OR REPLACE FUNCTION ops.replace_google_calendar_busy_cache(payload JSONB)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, core, ops
+AS $$
+DECLARE
+  window_start TIMESTAMPTZ;
+  window_end TIMESTAMPTZ;
+  slots JSONB := COALESCE(payload -> 'busy_slots', '[]'::jsonb);
+  inserted_count INTEGER := 0;
+BEGIN
+  BEGIN
+    window_start := (payload ->> 'start_at')::TIMESTAMPTZ;
+    window_end := (payload ->> 'end_at')::TIMESTAMPTZ;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'CALENDAR_CACHE_WINDOW_INVALID';
+  END;
+
+  IF NULLIF(payload ->> 'calendar_id', '') IS NULL
+     OR window_end <= window_start
+     OR window_end - window_start > INTERVAL '45 days'
+     OR jsonb_typeof(slots) <> 'array'
+     OR jsonb_array_length(slots) > 2000 THEN
+    RAISE EXCEPTION 'CALENDAR_CACHE_PAYLOAD_INVALID';
+  END IF;
+
+  DELETE FROM core.calendar_blocks
+  WHERE source = 'google_calendar'
+    AND starts_at < window_end
+    AND ends_at > window_start;
+
+  INSERT INTO core.calendar_blocks (starts_at, ends_at, reason, active, source, external_key, refreshed_at)
+  SELECT parsed.starts_at,
+         parsed.ends_at,
+         'Google Calendar ocupado',
+         TRUE,
+         'google_calendar',
+         encode(public.digest(parsed.starts_at::TEXT || ':' || parsed.ends_at::TEXT, 'sha256'), 'hex'),
+         NOW()
+  FROM (
+    SELECT (slot ->> 'start')::TIMESTAMPTZ AS starts_at,
+           (slot ->> 'end')::TIMESTAMPTZ AS ends_at
+    FROM jsonb_array_elements(slots) slot
+  ) parsed
+  WHERE parsed.ends_at > parsed.starts_at
+    AND parsed.starts_at < window_end
+    AND parsed.ends_at > window_start
+  ON CONFLICT (source, external_key) DO UPDATE
+  SET starts_at = EXCLUDED.starts_at,
+      ends_at = EXCLUDED.ends_at,
+      active = TRUE,
+      refreshed_at = NOW();
+
+  GET DIAGNOSTICS inserted_count = ROW_COUNT;
+
+  INSERT INTO ops.calendar_sync_state (provider, coverage_start, coverage_end, last_success_at, last_error_code, updated_at)
+  VALUES ('google_calendar', window_start, window_end, NOW(), NULL, NOW())
+  ON CONFLICT (provider) DO UPDATE
+  SET coverage_start = EXCLUDED.coverage_start,
+      coverage_end = EXCLUDED.coverage_end,
+      last_success_at = EXCLUDED.last_success_at,
+      last_error_code = NULL,
+      updated_at = NOW();
+
+  RETURN inserted_count;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION api.verificar_agenda(payload JSONB)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  requested_start TIMESTAMPTZ;
+  requested_end TIMESTAMPTZ;
+  duration_minutes INTEGER;
+  slots JSONB;
+  sync_state ops.calendar_sync_state%ROWTYPE;
+BEGIN
+  BEGIN
+    requested_start := (payload ->> 'start_at')::TIMESTAMPTZ;
+    requested_end := (payload ->> 'end_at')::TIMESTAMPTZ;
+    duration_minutes := (payload ->> 'duration_minutes')::INTEGER;
+  EXCEPTION WHEN OTHERS THEN
+    RETURN ops.wrap_error('CALENDAR_WINDOW_INVALID','Janela de agenda invalida.',FALSE);
+  END;
+  IF requested_end <= requested_start
+     OR requested_end - requested_start > INTERVAL '31 days'
+     OR duration_minutes < 15
+     OR duration_minutes > 180 THEN
+    RETURN ops.wrap_error('CALENDAR_WINDOW_INVALID','Janela ou duracao de agenda invalida.',FALSE);
+  END IF;
+
+  IF payload ->> 'channel' = 'test' AND COALESCE((payload ->> 'fixture_mode')::BOOLEAN,FALSE) THEN
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'starts_at',candidate_start,
+      'ends_at',candidate_start + make_interval(mins => duration_minutes),
+      'channel','fixture'
+    ) ORDER BY candidate_start),'[]'::jsonb)
+    INTO slots
+    FROM (
+      SELECT candidate_start
+      FROM generate_series(requested_start,requested_end - make_interval(mins => duration_minutes),make_interval(mins => duration_minutes)) candidate_start
+      JOIN core.business_hours hours ON hours.weekday=EXTRACT(DOW FROM candidate_start AT TIME ZONE hours.timezone)::INTEGER
+      WHERE hours.enabled
+        AND (candidate_start AT TIME ZONE hours.timezone)::TIME >= hours.opens_at
+        AND ((candidate_start + make_interval(mins => duration_minutes)) AT TIME ZONE hours.timezone)::TIME <= hours.closes_at
+        AND NOT tstzrange(candidate_start,candidate_start + make_interval(mins => duration_minutes),'[)') && tstzrange('2026-08-24T13:00:00-03:00','2026-08-24T14:00:00-03:00','[)')
+        AND NOT EXISTS (SELECT 1 FROM core.calendar_blocks block WHERE block.active AND tstzrange(candidate_start,candidate_start + make_interval(mins => duration_minutes),'[)') && tstzrange(block.starts_at,block.ends_at,'[)'))
+        AND NOT EXISTS (SELECT 1 FROM core.meetings meeting WHERE meeting.status IN ('pending','scheduled','rescheduled') AND tstzrange(candidate_start,candidate_start + make_interval(mins => duration_minutes),'[)') && tstzrange(meeting.starts_at,meeting.ends_at,'[)'))
+      ORDER BY candidate_start
+      LIMIT 20
+    ) available;
+    RETURN ops.wrap_success(jsonb_build_object('slots',slots,'integration_status','fixture','dispatch_required',FALSE));
+  END IF;
+
+  IF NOT ops.integration_enabled('google_calendar_enabled') THEN
+    RETURN ops.wrap_error('CALENDAR_DISABLED','Google Calendar desativado ou sem credencial valida.',FALSE);
+  END IF;
+
+  SELECT * INTO sync_state
+  FROM ops.calendar_sync_state
+  WHERE provider = 'google_calendar';
+
+  IF sync_state.provider IS NULL
+     OR sync_state.last_success_at < NOW() - INTERVAL '15 minutes'
+     OR sync_state.coverage_start > requested_start
+     OR sync_state.coverage_end < requested_end THEN
+    RETURN ops.wrap_error('CALENDAR_CACHE_STALE','Disponibilidade real ainda nao foi sincronizada; tente novamente em alguns minutos.',TRUE);
+  END IF;
+
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'starts_at',candidate_start,
+    'ends_at',candidate_start + make_interval(mins => duration_minutes),
+    'channel','google_calendar_cache'
+  ) ORDER BY candidate_start),'[]'::jsonb)
+  INTO slots
+  FROM (
+    SELECT candidate_start
+    FROM generate_series(requested_start,requested_end - make_interval(mins => duration_minutes),make_interval(mins => duration_minutes)) candidate_start
+    JOIN core.business_hours hours ON hours.weekday=EXTRACT(DOW FROM candidate_start AT TIME ZONE hours.timezone)::INTEGER
+    WHERE hours.enabled
+      AND (candidate_start AT TIME ZONE hours.timezone)::TIME >= hours.opens_at
+      AND ((candidate_start + make_interval(mins => duration_minutes)) AT TIME ZONE hours.timezone)::TIME <= hours.closes_at
+      AND NOT EXISTS (SELECT 1 FROM core.calendar_blocks block WHERE block.active AND tstzrange(candidate_start,candidate_start + make_interval(mins => duration_minutes),'[)') && tstzrange(block.starts_at,block.ends_at,'[)'))
+      AND NOT EXISTS (SELECT 1 FROM core.meetings meeting WHERE meeting.status IN ('pending','scheduled','rescheduled') AND tstzrange(candidate_start,candidate_start + make_interval(mins => duration_minutes),'[)') && tstzrange(meeting.starts_at,meeting.ends_at,'[)'))
+    ORDER BY candidate_start
+    LIMIT 20
+  ) available;
+
+  RETURN ops.wrap_success(jsonb_build_object(
+    'slots',slots,
+    'integration_status','live_cache',
+    'dispatch_required',FALSE,
+    'cache_refreshed_at',sync_state.last_success_at
+  ));
+END
 $$;
 
 COMMIT;

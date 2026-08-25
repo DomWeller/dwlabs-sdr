@@ -66,7 +66,8 @@
       },
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "alwaysOutputData": true
     },
     {
       "id": "3a54b3c4-fd81-6b9e-6b50-d347574a5694",
@@ -80,7 +81,7 @@
       "parameters": {
         "mode": "runOnceForEachItem",
         "language": "javaScript",
-        "jsCode": "const busy = Array.isArray($json.busy) ? $json.busy : (Array.isArray($json) ? $json : []); return [{ json: { ok: true, timezone: 'America/Sao_Paulo', busy_slots: busy.slice(0, 200) } }];"
+        "jsCode": "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, calendar_id: request.calendar_id, window_start: request.start_at, window_end: request.end_at, busy_start: $json.start || null, busy_end: $json.end || null, timezone: 'America/Sao_Paulo' } }];"
       }
     }
   ],

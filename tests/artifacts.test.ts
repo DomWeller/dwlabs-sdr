@@ -181,6 +181,8 @@ describe("artifact safeguards", () => {
     expect(migration).toContain("ops.complete_calendar_integration");
     expect(migration).toContain("ops.fail_calendar_integration");
     expect(migration).toContain("ops.claim_sheet_sync");
+    expect(migration).toContain("ops.replace_google_calendar_busy_cache");
+    expect(migration).toContain("CALENDAR_CACHE_STALE");
     expect(migration).toContain("attempts BETWEEN 0 AND 3");
     expect(migration).not.toContain("normalized_phone");
     expect(rollback).toContain("DROP TABLE IF EXISTS ops.calendar_integration_jobs");
@@ -199,6 +201,17 @@ describe("artifact safeguards", () => {
       expect(JSON.stringify(scheduler)).toContain("ops.complete_calendar_integration");
       expect(JSON.stringify(scheduler)).not.toContain("$env.");
     }
+
+    const availability = JSON.parse(
+      readFileSync(path.join(rootDir, "workflows/schedulers/sdr.google-calendar.availability.scheduler.json"), "utf8")
+    ) as { active: boolean; nodes: Array<{ type: string; parameters: { workflowId?: { value?: string } } }> };
+    const adapter = JSON.parse(
+      readFileSync(path.join(rootDir, "workflows/adapters/sdr.google-calendar.availability.adapter.json"), "utf8")
+    ) as { id: string; nodes: Array<{ type: string; alwaysOutputData?: boolean }> };
+    expect(availability.active).toBe(false);
+    expect(JSON.stringify(availability)).toContain("ops.replace_google_calendar_busy_cache");
+    expect(availability.nodes.find((node) => node.type === "n8n-nodes-base.executeWorkflow")?.parameters.workflowId?.value).toBe(adapter.id);
+    expect(adapter.nodes.find((node) => node.type === "n8n-nodes-base.googleCalendar")?.alwaysOutputData).toBe(true);
   });
 
   it("configures OpenClaw via CLI instead of writing compose override or config files", () => {

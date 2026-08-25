@@ -13,6 +13,7 @@ interface N8nNode {
   retryOnFail?: boolean;
   maxTries?: number;
   waitBetweenTries?: number;
+  alwaysOutputData?: boolean;
 }
 
 interface N8nWorkflow {
@@ -443,6 +444,9 @@ export function buildSubworkflow(name: string): N8nWorkflow {
 }
 
 export function buildScheduler(name: string): N8nWorkflow {
+  if (name === "sdr.google-calendar.availability.scheduler") {
+    return buildGoogleCalendarAvailabilityScheduler();
+  }
   if (name in googleCalendarSchedulerOperations) {
     return buildGoogleCalendarScheduler(name as keyof typeof googleCalendarSchedulerOperations);
   }
@@ -494,6 +498,90 @@ export function buildScheduler(name: string): N8nWorkflow {
     settings: {
       executionOrder: "v1"
     },
+    pinData: {},
+    tags: [],
+    active: false,
+    versionId: stableUuid(`${name}:version`)
+  };
+}
+
+function buildGoogleCalendarAvailabilityScheduler(): N8nWorkflow {
+  const name = "sdr.google-calendar.availability.scheduler";
+  const adapterName = "sdr.google-calendar.availability.adapter";
+  const nodes: N8nNode[] = [
+    {
+      id: stableUuid(`${name}:schedule`),
+      name: "Schedule Trigger",
+      type: "n8n-nodes-base.scheduleTrigger",
+      typeVersion: 1.2,
+      position: [130, 300],
+      parameters: { rule: { interval: [{ field: "minutes", minutesInterval: 5 }] } }
+    },
+    {
+      id: stableUuid(`${name}:window`),
+      name: "Load Calendar Window",
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [390, 300],
+      parameters: {
+        operation: "executeQuery",
+        query: `SELECT metadata ->> 'calendar_id' AS calendar_id,
+       NOW() AS start_at,
+       NOW() + INTERVAL '30 days' AS end_at
+FROM ops.runtime_flags
+WHERE flag_name = 'google_calendar_enabled'
+  AND enabled
+  AND NULLIF(metadata ->> 'calendar_id', '') IS NOT NULL;`,
+        options: {}
+      },
+      credentials: { postgres: { ...POSTGRES_CREDENTIAL } }
+    },
+    {
+      id: stableUuid(`${name}:execute`),
+      name: "Execute Availability Adapter",
+      type: "n8n-nodes-base.executeWorkflow",
+      typeVersion: 1.1,
+      position: [670, 300],
+      parameters: {
+        source: "database",
+        workflowId: { mode: "id", value: stableUuid(`${adapterName}:workflow`) },
+        mode: "once",
+        options: { waitForSubWorkflow: true }
+      }
+    },
+    {
+      id: stableUuid(`${name}:aggregate`),
+      name: "Aggregate Busy Slots",
+      type: "n8n-nodes-base.code",
+      typeVersion: 2,
+      position: [950, 300],
+      parameters: {
+        mode: "runOnceForAllItems",
+        language: "javaScript",
+        jsCode: "const values = $input.all().map((item) => item.json); if (!values.length) throw new Error('CALENDAR_AVAILABILITY_EMPTY_EXECUTION'); const first = values[0]; const busy_slots = values.filter((value) => value.busy_start && value.busy_end).map((value) => ({ start: value.busy_start, end: value.busy_end })); const payload = { calendar_id: first.calendar_id, start_at: first.window_start, end_at: first.window_end, busy_slots }; return [{ json: { cache_payload_base64: Buffer.from(JSON.stringify(payload), 'utf8').toString('base64') } }];"
+      }
+    },
+    {
+      id: stableUuid(`${name}:persist`),
+      name: "Replace Busy Cache",
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [1230, 300],
+      parameters: {
+        operation: "executeQuery",
+        query: "SELECT ops.replace_google_calendar_busy_cache(convert_from(decode($1, 'base64'), 'UTF8')::jsonb) AS replaced;",
+        options: { queryReplacement: "={{[$json.cache_payload_base64]}}" }
+      },
+      credentials: { postgres: { ...POSTGRES_CREDENTIAL } }
+    }
+  ];
+
+  return {
+    id: stableUuid(`${name}:workflow`),
+    name,
+    nodes,
+    connections: buildConnections(nodes.map((node) => node.name)),
+    settings: { executionOrder: "v1", timezone: "America/Sao_Paulo" },
     pinData: {},
     tags: [],
     active: false,
@@ -803,7 +891,7 @@ export function buildGoogleAdapter(name: (typeof googleAdapterNames)[number]): N
         timezone: { mode: "id", value: "America/Sao_Paulo" }
       }
     };
-    sanitizeCode = "const busy = Array.isArray($json.busy) ? $json.busy : (Array.isArray($json) ? $json : []); return [{ json: { ok: true, timezone: 'America/Sao_Paulo', busy_slots: busy.slice(0, 200) } }];";
+    sanitizeCode = "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, calendar_id: request.calendar_id, window_start: request.start_at, window_end: request.end_at, busy_start: $json.start || null, busy_end: $json.end || null, timezone: 'America/Sao_Paulo' } }];";
   } else if (name === "sdr.google-calendar.create.adapter") {
     type = "n8n-nodes-base.googleCalendar";
     typeVersion = 1.3;
@@ -925,7 +1013,8 @@ export function buildGoogleAdapter(name: (typeof googleAdapterNames)[number]): N
       credentials,
       retryOnFail: true,
       maxTries: 3,
-      waitBetweenTries: 2000
+      waitBetweenTries: 2000,
+      alwaysOutputData: name === "sdr.google-calendar.availability.adapter"
     },
     {
       id: stableUuid(`${name}:sanitize`),
