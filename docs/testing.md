@@ -57,6 +57,11 @@ docker exec openclaw-openclaw-gateway-1 \
 
 Resultado observado: resposta `13`, 1 tool call (`buscar_servicos`), 0 falhas.
 
+Em 2026-08-25, um novo turno interno apos o deploy confirmou a telemetria de latencia percebida:
+`agent_turn_delta=1`, resultado `completed` e duracao `20810 ms`. O harness Codex/OpenClaw usado
+nao emitiu `model_call_ended`; por isso o painel usa `agent_turn` como fallback honesto para o
+turno completo, mantendo `model_call` disponivel quando o runtime fornecer o evento sanitizado.
+
 ## Suite de integracao real
 
 ```bash
@@ -69,7 +74,7 @@ o banco e a trilha de auditoria, testa replay e colisao de idempotencia e bloque
 cruzadas entre os dois contatos. Um `trap` remove apenas os dados marcados pelo `run_id`, mesmo
 quando o teste falha.
 
-Resultado remoto confirmado em 2026-08-23:
+Resultado remoto reconfirmado em 2026-08-25:
 
 ```text
 tools_exercised=22
@@ -77,8 +82,8 @@ services_found=13
 idempotency_replay=true
 idempotency_collision_blocked=true
 cross_contact_reads_blocked=2
+active_handoff_reused=true
 external_integrations_remained_disabled=7
-cleanup=ok
 ```
 
 Os 7 casos de integracao externa validam o fail-safe desativado. Audio e Calendar tambem possuem
