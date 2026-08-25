@@ -501,10 +501,11 @@ export function buildInternalMetricsWorkflow(): N8nWorkflow {
           "const allowedChannels = new Set(['whatsapp', 'instagram', 'site', 'test', 'internal']);",
           "if (headers['x-agent-id'] !== 'comercial') throw new Error('AGENT_FORBIDDEN');",
           "if (!allowedChannels.has(String(body.channel))) throw new Error('CHANNEL_FORBIDDEN');",
-          "if (payload.metric_name !== 'model_call') throw new Error('METRIC_FORBIDDEN');",
+          "const allowedMetrics = new Set(['model_call', 'agent_turn']);",
+          "if (!allowedMetrics.has(String(payload.metric_name))) throw new Error('METRIC_FORBIDDEN');",
           "const durationMs = Number(payload.duration_ms);",
           "if (!Number.isFinite(durationMs) || durationMs < 0 || durationMs > 900000) throw new Error('METRIC_VALUE_INVALID');",
-          "const safe = { metric_name: 'model_call', duration_ms: durationMs, channel: String(body.channel), provider: String(payload.provider ?? 'unknown').slice(0,80), model: String(payload.model ?? 'unknown').slice(0,120), outcome: payload.outcome === 'completed' ? 'completed' : 'error', error_category: payload.error_category ? String(payload.error_category).slice(0,80) : null, time_to_first_byte_ms: Number.isFinite(Number(payload.time_to_first_byte_ms)) ? Number(payload.time_to_first_byte_ms) : null };",
+          "const safe = { metric_name: String(payload.metric_name), duration_ms: durationMs, channel: String(body.channel), provider: String(payload.provider ?? 'unknown').slice(0,80), model: String(payload.model ?? 'unknown').slice(0,120), outcome: payload.outcome === 'completed' ? 'completed' : 'error', error_category: payload.error_category ? String(payload.error_category).slice(0,80) : null, time_to_first_byte_ms: Number.isFinite(Number(payload.time_to_first_byte_ms)) ? Number(payload.time_to_first_byte_ms) : null };",
           "return [{ json: { metric_payload_base64: Buffer.from(JSON.stringify(safe), 'utf8').toString('base64') } }];"
         ].join("\n")
       }
@@ -521,7 +522,7 @@ export function buildInternalMetricsWorkflow(): N8nWorkflow {
   SELECT convert_from(decode($1, 'base64'), 'UTF8')::jsonb AS payload
 ), inserted AS (
   INSERT INTO ops.metrics_events(metric_name, metric_value, dimensions)
-  SELECT 'model_call',
+  SELECT payload ->> 'metric_name',
          (payload ->> 'duration_ms')::NUMERIC,
          jsonb_build_object(
            'channel', payload ->> 'channel',

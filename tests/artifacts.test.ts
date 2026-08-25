@@ -230,6 +230,7 @@ describe("artifact safeguards", () => {
     expect(plugin).toContain('toolPlugin.register(api)');
     expect(plugin).toContain('"before_prompt_build"');
     expect(plugin).toContain('"model_call_ended"');
+    expect(plugin).toContain('"agent_end"');
     expect(plugin).toContain("CONTEXTO CRM CONFIAVEL DO PROPRIO CONTATO");
     expect(plugin).toContain("return { handled: true }");
     expect(plugin).toContain("ACTIVE_HANDOFF_FAILURE_GRACE_MS");

@@ -40,6 +40,7 @@ describe("human handoff guard", () => {
     let inboundClaim: ((event: unknown, context: Record<string, unknown>) => Promise<unknown>) | undefined;
     let beforePromptBuild: ((event: unknown, context: Record<string, unknown>) => Promise<unknown>) | undefined;
     let modelCallEnded: ((event: Record<string, unknown>, context: Record<string, unknown>) => Promise<unknown>) | undefined;
+    let agentEnd: ((event: Record<string, unknown>, context: Record<string, unknown>) => Promise<unknown>) | undefined;
     const api = {
       pluginConfig: { baseUrl: "https://n8n.invalid/webhook", bearerToken: "test-token-".repeat(6) },
       logger: { info: vi.fn() },
@@ -48,6 +49,7 @@ describe("human handoff guard", () => {
         if (name === "inbound_claim") inboundClaim = handler;
         if (name === "before_prompt_build") beforePromptBuild = handler;
         if (name === "model_call_ended") modelCallEnded = handler as typeof modelCallEnded;
+        if (name === "agent_end") agentEnd = handler as typeof agentEnd;
       }
     };
     plugin.register(api as never);
@@ -55,6 +57,7 @@ describe("human handoff guard", () => {
     expect(inboundClaim).toBeTypeOf("function");
     expect(beforePromptBuild).toBeTypeOf("function");
     expect(modelCallEnded).toBeTypeOf("function");
+    expect(agentEnd).toBeTypeOf("function");
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       ok: true,
@@ -88,5 +91,19 @@ describe("human handoff guard", () => {
     }, { agentId: "comercial", messageProvider: "whatsapp" })).resolves.toBeUndefined();
     const metricRequest = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit;
     expect(String(metricRequest.body)).toContain('"metric_name":"model_call"');
+
+    await expect(agentEnd?.({
+      runId: "run-2",
+      messages: [],
+      success: true,
+      durationMs: 2400
+    }, {
+      agentId: "comercial",
+      runId: "run-2",
+      modelProviderId: "openai",
+      modelId: "gpt-test"
+    })).resolves.toBeUndefined();
+    const turnMetricRequest = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit;
+    expect(String(turnMetricRequest.body)).toContain('"metric_name":"agent_turn"');
   });
 });

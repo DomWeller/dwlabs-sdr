@@ -526,7 +526,7 @@ const plugin = definePluginEntry({
   configSchema: toolPlugin.configSchema,
   register(api) {
     toolPlugin.register(api);
-    api.logger?.info("DWLabs SDR: 22 tools e 3 hooks de seguranca/observabilidade registrados.");
+    api.logger?.info("DWLabs SDR: 22 tools e 4 hooks de seguranca/observabilidade registrados.");
     const config = api.pluginConfig as PluginConfig;
     api.on(
       "inbound_claim",
@@ -585,6 +585,36 @@ const plugin = definePluginEntry({
         }
       },
       { priority: 80, timeoutMs: 4000 }
+    );
+    api.on(
+      "agent_end",
+      async (event, context) => {
+        if (!isCommercialAgentContext(context) || !Number.isFinite(event.durationMs)) return;
+        const runKey = event.runId ?? context.runId ?? context.sessionKey ?? randomUUID();
+        const metricKey = createHash("sha256").update(`agent-end:${runKey}`).digest("hex");
+        try {
+          await callWorkflow("dwlabs-sdr/agent-metrics", {
+            request_id: randomUUID(),
+            idempotency_key: `agent-metric:${metricKey}`,
+            channel: ["whatsapp", "instagram", "site", "test"].includes(String(context.messageProvider))
+              ? String(context.messageProvider)
+              : "internal",
+            actor: {},
+            context: { conversation_id: event.runId ?? context.runId },
+            payload: {
+              metric_name: "agent_turn",
+              duration_ms: event.durationMs,
+              provider: context.modelProviderId ?? "openclaw",
+              model: context.modelId ?? "unknown",
+              outcome: event.success ? "completed" : "error",
+              error_category: event.success ? null : "agent_run_error"
+            }
+          }, { ...config, timeoutMs: Math.min(config.timeoutMs ?? 8000, 3000) });
+        } catch {
+          return;
+        }
+      },
+      { priority: 70, timeoutMs: 4000 }
     );
   }
 });
