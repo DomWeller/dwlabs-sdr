@@ -3,11 +3,11 @@
 ## Cobertura local automatizada
 
 ```text
-3 arquivos de teste, 42 testes, 0 falhas
+3 arquivos de teste, 45 testes, 0 falhas
 ```
 
 - 20 cenarios comerciais obrigatorios em `tests/scenarios.test.ts`
-- 18 salvaguardas de artefatos e configuracao em `tests/artifacts.test.ts`
+- 21 salvaguardas de artefatos e configuracao em `tests/artifacts.test.ts`
   (inclui comparar o SHA-256 puro em JavaScript gerado nos Code nodes com o SHA-256 oficial
   do Node)
 - validacao estrutural em `src/cli/validate-artifacts.ts`
@@ -31,7 +31,7 @@ npm run scan:secrets
 bash scripts/healthcheck.sh
 ```
 
-Ele valida containers, banco, catalogo, OpenClaw, plugin e agente, exige 34 workflows
+Ele valida containers, banco, catalogo, OpenClaw, plugin e agente, exige 42 workflows
 presentes e 32 ativos, e checa os dois comportamentos do webhook:
 
 - chamada sem autenticacao deve retornar HTTP `403` (comportamento nativo do Header Auth)
@@ -90,10 +90,11 @@ Os 7 casos de integracao externa validam o fail-safe desativado. Audio e Calenda
 fixtures deterministicas em `channel=test`; os caminhos OAuth reais de Calendar, notificacao e
 Sheets continuam pendentes de credenciais e autorizacao.
 
-As migrations `001..006` foram aplicadas em banco temporario; a `006` foi reaplicada, revertida e
-aplicada novamente, confirmando score padrao `23` e 21 regras. Antes do piloto, testar tambem
-concorrencia do claim,
-destino fora da allowlist, tres retries, opt-out, nova entrada, painel/CSRF e `pilot-stop`.
+As migrations `001..007` foram aplicadas em banco temporario. A `006` foi reaplicada, revertida e
+aplicada novamente, confirmando score padrao `23` e 21 regras. A `007` foi exercitada com enqueue,
+claim `SKIP LOCKED`, falha/retry, conclusao Calendar/Meet, claim Sheets, preservacao da configuracao
+OAuth num novo seed e rollback funcional. Antes da ativacao OAuth real, ainda e obrigatorio testar
+os nodes Google com dados sinteticos e remover os artefatos externos criados.
 
 ## Regressao do relatorio de WhatsApp de 2026-08-25
 

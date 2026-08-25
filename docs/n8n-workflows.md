@@ -10,12 +10,14 @@ integracoes externas ainda nao configuradas.
 - `workflows/public-tools/`: 22 ferramentas publicas (um webhook por ferramenta)
 - `workflows/subworkflows/`: 8 utilitarios reutilizaveis
 - `workflows/internal/`: `sdr.agent.metrics`, webhook autenticado de telemetria sem conteudo de conversa
-- `workflows/schedulers/`: `sdr.health.selfcheck`, `sdr.followup.scheduler`, `sdr.sheets.sync.scheduler`
+- `workflows/adapters/`: disponibilidade/criacao/reagendamento/cancelamento no Calendar/Meet e
+  upsert da visao de pipeline no Sheets, todos com nodes Google nativos
+- `workflows/schedulers/`: healthcheck, follow-up, Sheets e tres dispatchers Calendar
 
 ## Estado esperado depois da importacao
 
 ```text
-workflows presentes = 34
+workflows presentes = 42
 workflows ativos    = 32
 webhooks registrados = 22
 ```
@@ -25,11 +27,14 @@ Composicao dos 32 ativos: 22 ferramentas publicas + 8 subworkflows + `sdr.agent.
 
 Ficam **inativos de proposito**:
 
-- `sdr.followup.scheduler` — responde `FOLLOWUP_DISABLED`
-- `sdr.sheets.sync.scheduler` — responde `GOOGLE_SHEETS_DISABLED`
+- `sdr.followup.scheduler` — envio real continua separado e owner-only
+- `sdr.sheets.sync.scheduler` — depende de OAuth, `document_id` e teste controlado
+- tres schedulers Calendar — dependem de OAuth, `calendar_id` e teste controlado
+- os 5 workflows de `workflows/adapters/` — dependem de OAuth e IDs reais de calendario/planilha
 
-Nao reativar esses dois apenas trocando a flag interna. Antes e preciso ter dispatcher real,
-credenciais, opt-out, retry e teste controlado.
+Nao reativar esses dez workflows apenas trocando a flag interna. Antes e preciso ter credenciais,
+consentimento, IDs externos e teste controlado. Os dispatchers Google ja possuem claim com lease,
+retry limitado e conclusao idempotente; permanecem despublicados por seguranca.
 
 ## Importacao
 
@@ -37,7 +42,7 @@ credenciais, opt-out, retry e teste controlado.
 bash scripts/import-workflows.sh
 ```
 
-O script importa os 34, publica 32, despublica os 2 opcionais e reinicia o n8n para
+O script importa os 42, publica 32, despublica os 5 schedulers opcionais e os 5 adaptadores, e reinicia o n8n para
 consolidar os webhooks.
 
 ## Credenciais fixas
@@ -53,6 +58,10 @@ de credencial sao fixos e precisam existir no n8n antes da importacao:
 
 Google Calendar (`DWLABS_SDR_GOOGLE_CALENDAR`) e Google Sheets (`DWLABS_SDR_GOOGLE_SHEETS`)
 seguem como placeholders, sem OAuth configurado.
+
+Os adaptadores usam os tipos e versoes confirmados no n8n `2.34.5`: Google Calendar `1.3` e
+Google Sheets `4.7`. Cada chamada mutante exige `authorized=true`, usa tres tentativas e devolve
+somente metadados minimizados. Importar nao executa nem publica esses workflows.
 
 ## Outras particularidades dos exports
 

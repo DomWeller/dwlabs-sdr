@@ -21,5 +21,9 @@ Fluxo alvo:
 - `database/migrations/*.up.sql`: schemas `core`, `rag`, `ops`, `audit`, `api` e evolucoes incrementais
 - `workflows/public-tools/*.json`: endpoints importaveis do n8n
 - `workflows/internal/sdr.agent.metrics.json`: telemetria autenticada sem conteudo de conversa
+- `workflows/adapters/*.json`: cinco adaptadores Google nativos, importados e mantidos inativos
+- `workflows/schedulers/*.json`: dispatchers Google com lease, retry e conclusao transacional,
+  tambem inativos enquanto OAuth e IDs reais nao forem aprovados
+  ate OAuth, IDs de destino e teste owner-only
 - `plugins/dwlabs-sdr-tools/`: cliente autenticado para OpenClaw
 - `openclaw-agent/comercial.agent.config.json`: politicas e isolamento do agente
