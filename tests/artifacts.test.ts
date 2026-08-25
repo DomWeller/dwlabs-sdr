@@ -202,6 +202,10 @@ describe("artifact safeguards", () => {
     expect(start).toContain("CONFIRM_PILOT_OWNER_ONLY");
     expect(start).toContain("SDR_PUBLIC_FLAG");
     expect(start).toContain("groupPolicy");
+    expect(start).toContain("rollback_partial_start");
+    expect(start).toContain("openclaw agents list --bindings --json");
+    expect(start).toContain("Binding comercial nao permaneceu aplicado");
+    expect(start).toContain("Flags do piloto divergentes");
     expect(stop).toContain("openclaw agents unbind");
     expect(stop).toContain("status='cancelled'");
     const bootstrap = readFileSync(path.join(rootDir, "scripts/bootstrap-env.sh"), "utf8");
