@@ -166,6 +166,10 @@ describe("artifact safeguards", () => {
       path.join(rootDir, "database/migrations/003_qualify_pgcrypto_digest.up.sql"),
       "utf8"
     );
+    const perToolIdempotency = readFileSync(
+      path.join(rootDir, "database/migrations/004_idempotency_per_tool.up.sql"),
+      "utf8"
+    );
     expect(migration).toContain("ops.check_rate_limit");
     expect(migration).toContain("FOR UPDATE SKIP LOCKED");
     expect(migration).toContain("RATE_LIMITED");
@@ -177,6 +181,8 @@ describe("artifact safeguards", () => {
     expect(migration).toContain("SECURITY DEFINER");
     expect(pgcryptoFix).toContain("public.digest(contact.normalized_phone, 'sha256')");
     expect(pgcryptoFix).toContain("SET search_path = pg_catalog, core, ops");
+    expect(perToolIdempotency).toContain("source_system, external_event_id, tool_name");
+    expect(perToolIdempotency).toContain("DROP CONSTRAINT IF EXISTS");
     const lib = readFileSync(path.join(rootDir, "scripts/lib.sh"), "utf8");
     expect(lib).toContain("REVOKE ALL ON FUNCTION ops.enqueue_due_followups");
     expect(lib).toContain('FROM PUBLIC, "${POSTGRES_USER}", "${POSTGRES_ADMIN_USER}"');

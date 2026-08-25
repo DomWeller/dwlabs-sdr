@@ -268,23 +268,22 @@ expectSuccess(
   "atualizar_lead"
 );
 
+const interactionEnvelope = makeEnvelope(
+  "registrar_interacao",
+  {
+    lead_id: leadA.lead_id,
+    conversation_id: leadA.conversation_id,
+    interaction_type: "note",
+    content: `Teste interno; contato ${emailA}`,
+    source_message_id: `${runId}-interaction`
+  },
+  actorA,
+  contextA
+);
+interactionEnvelope.request_id = saveAEnvelope.request_id;
 expectSuccess(
-  await request(
-    "registrar_interacao",
-    makeEnvelope(
-      "registrar_interacao",
-      {
-        lead_id: leadA.lead_id,
-        conversation_id: leadA.conversation_id,
-        interaction_type: "note",
-        content: `Teste interno; contato ${emailA}`,
-        source_message_id: `${runId}-interaction`
-      },
-      actorA,
-      contextA
-    )
-  ),
-  "registrar_interacao"
+  await request("registrar_interacao", interactionEnvelope),
+  "registrar_interacao com o mesmo evento externo de outra ferramenta"
 );
 
 const persistedScore = expectSuccess(
@@ -357,6 +356,7 @@ process.stdout.write(
     services_found: services.services.length,
     idempotency_replay: true,
     idempotency_collision_blocked: true,
+    same_external_event_across_tools: true,
     cross_contact_reads_blocked: 2,
     external_integrations_remained_disabled: 7
   }) + "\n"
