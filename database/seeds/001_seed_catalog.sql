@@ -96,13 +96,12 @@ SET title = EXCLUDED.title,
 
 INSERT INTO ops.runtime_flags (flag_name, enabled, metadata)
 VALUES
-  ('google_calendar_enabled', FALSE, '{"manual_step":"Configurar OAuth no n8n credential store antes de publicar."}'),
-  ('google_sheets_enabled', FALSE, '{"manual_step":"Configurar OAuth do Google Sheets antes de sincronizar."}'),
+  ('google_calendar_enabled', FALSE, '{"calendar_id":null,"manual_step":"Criar a credencial DWLabs SDR Google Calendar no n8n, preencher calendar_id e publicar somente os workflows Google aprovados."}'),
+  ('google_sheets_enabled', FALSE, '{"document_id":null,"sheet_name":"Pipeline","manual_step":"Criar a credencial DWLabs SDR Google Sheets no n8n, preencher document_id/sheet_name e publicar somente os workflows Google aprovados."}'),
   ('audio_provider_enabled', FALSE, '{"manual_step":"Adicionar provider de audio aprovado e chave fora do Git."}'),
   ('notification_webhook_enabled', FALSE, '{"manual_step":"Apontar webhook interno autorizado antes de mudar modo mock."}')
 ON CONFLICT (flag_name) DO UPDATE
-SET enabled = EXCLUDED.enabled,
-    metadata = EXCLUDED.metadata,
+SET metadata = EXCLUDED.metadata || ops.runtime_flags.metadata,
     updated_at = NOW();
 
 COMMIT;

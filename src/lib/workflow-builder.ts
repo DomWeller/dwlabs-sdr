@@ -10,6 +10,9 @@ interface N8nNode {
   position: [number, number];
   parameters: Record<string, unknown>;
   credentials?: Record<string, { id: string; name: string }>;
+  retryOnFail?: boolean;
+  maxTries?: number;
+  waitBetweenTries?: number;
 }
 
 interface N8nWorkflow {
@@ -33,6 +36,30 @@ const POSTGRES_CREDENTIAL = {
   id: "DWLABS_SDR_POSTGRES_ID",
   name: "DWLABS_SDR_POSTGRES"
 };
+
+const GOOGLE_CALENDAR_CREDENTIAL = {
+  id: "DWLABS_SDR_GOOGLE_CALENDAR_ID",
+  name: "DWLABS_SDR_GOOGLE_CALENDAR"
+};
+
+const GOOGLE_SHEETS_CREDENTIAL = {
+  id: "DWLABS_SDR_GOOGLE_SHEETS_ID",
+  name: "DWLABS_SDR_GOOGLE_SHEETS"
+};
+
+export const googleAdapterNames = [
+  "sdr.google-calendar.availability.adapter",
+  "sdr.google-calendar.create.adapter",
+  "sdr.google-calendar.update.adapter",
+  "sdr.google-calendar.delete.adapter",
+  "sdr.google-sheets.pipeline.adapter"
+] as const;
+
+const googleCalendarSchedulerOperations = {
+  "sdr.google-calendar.create.scheduler": "create",
+  "sdr.google-calendar.update.scheduler": "update",
+  "sdr.google-calendar.delete.scheduler": "delete"
+} as const;
 
 const stableUuid = (seed: string): string => {
   const hex = createHash("sha1").update(seed).digest("hex").slice(0, 32);
@@ -416,6 +443,13 @@ export function buildSubworkflow(name: string): N8nWorkflow {
 }
 
 export function buildScheduler(name: string): N8nWorkflow {
+  if (name in googleCalendarSchedulerOperations) {
+    return buildGoogleCalendarScheduler(name as keyof typeof googleCalendarSchedulerOperations);
+  }
+  if (name === "sdr.sheets.sync.scheduler") {
+    return buildGoogleSheetsScheduler();
+  }
+
   const jsCode = schedulerCodeByName[name] ?? "return [{ json: { ok: false, code: 'SCHEDULER_UNMAPPED', retryable: false } }];";
   const nodes: N8nNode[] = [
     {
@@ -460,6 +494,162 @@ export function buildScheduler(name: string): N8nWorkflow {
     settings: {
       executionOrder: "v1"
     },
+    pinData: {},
+    tags: [],
+    active: false,
+    versionId: stableUuid(`${name}:version`)
+  };
+}
+
+function buildGoogleCalendarScheduler(name: keyof typeof googleCalendarSchedulerOperations): N8nWorkflow {
+  const operation = googleCalendarSchedulerOperations[name];
+  const adapterName = `sdr.google-calendar.${operation}.adapter`;
+  const nodes: N8nNode[] = [
+    {
+      id: stableUuid(`${name}:schedule`),
+      name: "Schedule Trigger",
+      type: "n8n-nodes-base.scheduleTrigger",
+      typeVersion: 1.2,
+      position: [180, 300],
+      parameters: { rule: { interval: [{ field: "minutes", minutesInterval: 2 }] } }
+    },
+    {
+      id: stableUuid(`${name}:claim`),
+      name: "Claim Calendar Job",
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [450, 300],
+      parameters: {
+        operation: "executeQuery",
+        query: `SELECT * FROM ops.claim_calendar_integration('n8n-calendar-${operation}', '${operation}');`,
+        options: {}
+      },
+      credentials: { postgres: { ...POSTGRES_CREDENTIAL } }
+    },
+    {
+      id: stableUuid(`${name}:execute`),
+      name: "Execute Google Adapter",
+      type: "n8n-nodes-base.executeWorkflow",
+      typeVersion: 1.1,
+      position: [730, 300],
+      parameters: {
+        source: "database",
+        workflowId: { mode: "id", value: stableUuid(`${adapterName}:workflow`) },
+        mode: "once",
+        options: { waitForSubWorkflow: true }
+      }
+    },
+    {
+      id: stableUuid(`${name}:prepare-completion`),
+      name: "Prepare Completion",
+      type: "n8n-nodes-base.code",
+      typeVersion: 2,
+      position: [1010, 300],
+      parameters: {
+        mode: "runOnceForEachItem",
+        language: "javaScript",
+        jsCode: "if (!$json.job_id) throw new Error('CALENDAR_JOB_ID_MISSING'); return [{ json: { job_id: String($json.job_id), result_base64: Buffer.from(JSON.stringify($json), 'utf8').toString('base64') } }];"
+      }
+    },
+    {
+      id: stableUuid(`${name}:complete`),
+      name: "Complete Calendar Job",
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [1290, 300],
+      parameters: {
+        operation: "executeQuery",
+        query: "SELECT ops.complete_calendar_integration($1::uuid, convert_from(decode($2, 'base64'), 'UTF8')::jsonb) AS completed;",
+        options: { queryReplacement: "={{[$json.job_id, $json.result_base64]}}" }
+      },
+      credentials: { postgres: { ...POSTGRES_CREDENTIAL } }
+    }
+  ];
+
+  return {
+    id: stableUuid(`${name}:workflow`),
+    name,
+    nodes,
+    connections: buildConnections(nodes.map((node) => node.name)),
+    settings: { executionOrder: "v1", timezone: "America/Sao_Paulo" },
+    pinData: {},
+    tags: [],
+    active: false,
+    versionId: stableUuid(`${name}:version`)
+  };
+}
+
+function buildGoogleSheetsScheduler(): N8nWorkflow {
+  const name = "sdr.sheets.sync.scheduler";
+  const adapterName = "sdr.google-sheets.pipeline.adapter";
+  const nodes: N8nNode[] = [
+    {
+      id: stableUuid(`${name}:schedule`),
+      name: "Schedule Trigger",
+      type: "n8n-nodes-base.scheduleTrigger",
+      typeVersion: 1.2,
+      position: [150, 300],
+      parameters: { rule: { interval: [{ field: "minutes", minutesInterval: 10 }] } }
+    },
+    {
+      id: stableUuid(`${name}:claim`),
+      name: "Claim Sheets Job",
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [410, 300],
+      parameters: {
+        operation: "executeQuery",
+        query: "SELECT * FROM ops.claim_sheet_sync('n8n-sheets-pipeline');",
+        options: {}
+      },
+      credentials: { postgres: { ...POSTGRES_CREDENTIAL } }
+    },
+    {
+      id: stableUuid(`${name}:prepare`),
+      name: "Prepare Sheets Adapter Input",
+      type: "n8n-nodes-base.code",
+      typeVersion: 2,
+      position: [680, 300],
+      parameters: {
+        mode: "runOnceForEachItem",
+        language: "javaScript",
+        jsCode: "const row = typeof $json.row_payload === 'string' ? JSON.parse($json.row_payload) : $json.row_payload; return [{ json: { sync_job_id: String($json.sync_job_id), document_id: String($json.document_id), sheet_name: String($json.sheet_name), authorized: $json.authorized === true, row } }];"
+      }
+    },
+    {
+      id: stableUuid(`${name}:execute`),
+      name: "Execute Google Sheets Adapter",
+      type: "n8n-nodes-base.executeWorkflow",
+      typeVersion: 1.1,
+      position: [960, 300],
+      parameters: {
+        source: "database",
+        workflowId: { mode: "id", value: stableUuid(`${adapterName}:workflow`) },
+        mode: "once",
+        options: { waitForSubWorkflow: true }
+      }
+    },
+    {
+      id: stableUuid(`${name}:complete`),
+      name: "Complete Sheets Job",
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.6,
+      position: [1240, 300],
+      parameters: {
+        operation: "executeQuery",
+        query: "SELECT ops.complete_sheet_sync($1::uuid) AS completed;",
+        options: { queryReplacement: "={{[$json.sync_job_id]}}" }
+      },
+      credentials: { postgres: { ...POSTGRES_CREDENTIAL } }
+    }
+  ];
+
+  return {
+    id: stableUuid(`${name}:workflow`),
+    name,
+    nodes,
+    connections: buildConnections(nodes.map((node) => node.name)),
+    settings: { executionOrder: "v1", timezone: "America/Sao_Paulo" },
     pinData: {},
     tags: [],
     active: false,
@@ -556,6 +746,203 @@ SELECT jsonb_build_object('ok',TRUE,'stored',TRUE) AS result FROM inserted;`,
     nodes,
     connections: buildConnections(nodes.map((node) => node.name)),
     settings: { executionOrder: "v1" },
+    pinData: {},
+    tags: [],
+    active: false,
+    versionId: stableUuid(`${name}:version`)
+  };
+}
+
+export function buildGoogleAdapter(name: (typeof googleAdapterNames)[number]): N8nWorkflow {
+  const triggerName = "Execute Adapter";
+  const validateName = "Validate Adapter Input";
+  const googleName = "Google Operation";
+  const sanitizeName = "Sanitize Adapter Result";
+  const commonRequired = name.includes("google-calendar") ? ["calendar_id"] : ["document_id", "sheet_name", "row"];
+  const operationRequired = name.endsWith("availability.adapter")
+    ? ["start_at", "end_at"]
+    : name.endsWith("create.adapter")
+      ? ["start_at", "end_at", "authorized"]
+      : name.endsWith("update.adapter")
+        ? ["event_id", "start_at", "end_at", "authorized"]
+        : name.endsWith("delete.adapter")
+          ? ["event_id", "authorized"]
+          : ["authorized"];
+  const mutating = !name.endsWith("availability.adapter");
+  const validateCode = [
+    "const input = $json ?? {};",
+    `const required = ${JSON.stringify([...commonRequired, ...operationRequired])};`,
+    "const missing = required.filter((field) => input[field] === undefined || input[field] === null || input[field] === '');",
+    "if (missing.length) throw new Error(`ADAPTER_INPUT_INVALID:${missing.join(',')}`);",
+    mutating ? "if (input.authorized !== true) throw new Error('ADAPTER_AUTH_REQUIRED');" : "",
+    "if (input.start_at && input.end_at && new Date(input.end_at) <= new Date(input.start_at)) throw new Error('ADAPTER_WINDOW_INVALID');",
+    name.includes("google-sheets")
+      ? "if (!input.row || typeof input.row !== 'object' || Array.isArray(input.row) || !input.row.lead_id) throw new Error('SHEETS_ROW_INVALID');"
+      : "",
+    name.includes("google-sheets") ? "return [{ json: { document_id: input.document_id, sheet_name: input.sheet_name, ...input.row } }];" : "return [{ json: input }];"
+  ].filter(Boolean).join("\n");
+
+  let parameters: Record<string, unknown>;
+  let credentials: Record<string, { id: string; name: string }>;
+  let type: string;
+  let typeVersion: number;
+  let sanitizeCode: string;
+
+  if (name === "sdr.google-calendar.availability.adapter") {
+    type = "n8n-nodes-base.googleCalendar";
+    typeVersion = 1.3;
+    credentials = { googleCalendarOAuth2Api: { ...GOOGLE_CALENDAR_CREDENTIAL } };
+    parameters = {
+      resource: "calendar",
+      operation: "availability",
+      calendar: { mode: "id", value: "={{ $json.calendar_id }}" },
+      timeMin: "={{ $json.start_at }}",
+      timeMax: "={{ $json.end_at }}",
+      options: {
+        outputFormat: "bookedSlots",
+        timezone: { mode: "id", value: "America/Sao_Paulo" }
+      }
+    };
+    sanitizeCode = "const busy = Array.isArray($json.busy) ? $json.busy : (Array.isArray($json) ? $json : []); return [{ json: { ok: true, timezone: 'America/Sao_Paulo', busy_slots: busy.slice(0, 200) } }];";
+  } else if (name === "sdr.google-calendar.create.adapter") {
+    type = "n8n-nodes-base.googleCalendar";
+    typeVersion = 1.3;
+    credentials = { googleCalendarOAuth2Api: { ...GOOGLE_CALENDAR_CREDENTIAL } };
+    parameters = {
+      resource: "event",
+      operation: "create",
+      calendar: { mode: "id", value: "={{ $json.calendar_id }}" },
+      start: "={{ $json.start_at }}",
+      end: "={{ $json.end_at }}",
+      useDefaultReminders: true,
+      additionalFields: {
+        attendees: "={{ $json.attendee_email ? [$json.attendee_email] : [] }}",
+        conferenceDataUi: { conferenceDataValues: { conferenceSolution: "hangoutsMeet" } },
+        description: "={{ $json.description || 'Reuniao comercial agendada pelo atendimento oficial DWLabs.' }}",
+        guestsCanInviteOthers: false,
+        guestsCanModify: false,
+        sendUpdates: "all",
+        showMeAs: "opaque",
+        summary: "={{ $json.summary || 'Reuniao comercial DWLabs' }}",
+        visibility: "private"
+      }
+    };
+    sanitizeCode = "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, job_id: request.job_id || null, meeting_id: request.meeting_id || null, external_event_id: String($json.id || ''), meet_url: $json.hangoutLink || $json.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === 'video')?.uri || null, status: String($json.status || 'confirmed') } }];";
+  } else if (name === "sdr.google-calendar.update.adapter") {
+    type = "n8n-nodes-base.googleCalendar";
+    typeVersion = 1.3;
+    credentials = { googleCalendarOAuth2Api: { ...GOOGLE_CALENDAR_CREDENTIAL } };
+    parameters = {
+      resource: "event",
+      operation: "update",
+      calendar: { mode: "id", value: "={{ $json.calendar_id }}" },
+      eventId: "={{ $json.event_id }}",
+      modifyTarget: "event",
+      useDefaultReminders: true,
+      updateFields: {
+        start: "={{ $json.start_at }}",
+        end: "={{ $json.end_at }}",
+        description: "={{ $json.description || 'Reuniao comercial DWLabs reagendada.' }}",
+        sendUpdates: "all",
+        summary: "={{ $json.summary || 'Reuniao comercial DWLabs' }}"
+      }
+    };
+    sanitizeCode = "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, job_id: request.job_id || null, meeting_id: request.meeting_id || null, external_event_id: String($json.id || ''), meet_url: $json.hangoutLink || null, status: String($json.status || 'confirmed') } }];";
+  } else if (name === "sdr.google-calendar.delete.adapter") {
+    type = "n8n-nodes-base.googleCalendar";
+    typeVersion = 1.3;
+    credentials = { googleCalendarOAuth2Api: { ...GOOGLE_CALENDAR_CREDENTIAL } };
+    parameters = {
+      resource: "event",
+      operation: "delete",
+      calendar: { mode: "id", value: "={{ $json.calendar_id }}" },
+      eventId: "={{ $json.event_id }}",
+      options: { sendUpdates: "all" }
+    };
+    sanitizeCode = "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, job_id: request.job_id || null, meeting_id: request.meeting_id || null, external_event_id: request.event_id || null, deleted: true, status: 'deleted' } }];";
+  } else {
+    type = "n8n-nodes-base.googleSheets";
+    typeVersion = 4.7;
+    credentials = { googleSheetsOAuth2Api: { ...GOOGLE_SHEETS_CREDENTIAL } };
+    parameters = {
+      authentication: "oAuth2",
+      resource: "sheet",
+      operation: "appendOrUpdate",
+      documentId: { mode: "id", value: "={{ $json.document_id }}" },
+      sheetName: { mode: "id", value: "={{ $json.sheet_name }}" },
+      columns: {
+        mappingMode: "defineBelow",
+        value: {
+          lead_id: "={{ $json.lead_id }}",
+          company: "={{ $json.company || '' }}",
+          stage: "={{ $json.stage || '' }}",
+          score: "={{ $json.score ?? 0 }}",
+          temperature: "={{ $json.temperature || '' }}",
+          segment: "={{ $json.segment || '' }}",
+          city: "={{ $json.city || '' }}",
+          services: "={{ $json.services || '' }}",
+          owner: "={{ $json.owner || '' }}",
+          updated_at: "={{ $json.updated_at || '' }}"
+        },
+        matchingColumns: ["lead_id"],
+        schema: [
+          { id: "lead_id", displayName: "lead_id", required: true, defaultMatch: true, display: true, type: "string", canBeUsedToMatch: true },
+          ...["company", "stage", "temperature", "segment", "city", "services", "owner", "updated_at"].map((id) => ({ id, displayName: id, required: false, defaultMatch: false, display: true, type: "string", canBeUsedToMatch: false })),
+          { id: "score", displayName: "score", required: false, defaultMatch: false, display: true, type: "number", canBeUsedToMatch: false }
+        ],
+        attemptToConvertTypes: false,
+        convertFieldsToString: true
+      },
+      options: { handlingExtraData: "ignoreIt" }
+    };
+    sanitizeCode = "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, sync_job_id: request.sync_job_id || null, row_synced: true, lead_id: String(request.lead_id || $json.lead_id || '') } }];";
+  }
+
+  const nodes: N8nNode[] = [
+    {
+      id: stableUuid(`${name}:trigger`),
+      name: triggerName,
+      type: "n8n-nodes-base.executeWorkflowTrigger",
+      typeVersion: 1.1,
+      position: [220, 300],
+      parameters: { workflowInputs: { values: [] } }
+    },
+    {
+      id: stableUuid(`${name}:validate`),
+      name: validateName,
+      type: "n8n-nodes-base.code",
+      typeVersion: 2,
+      position: [500, 300],
+      parameters: { mode: "runOnceForEachItem", language: "javaScript", jsCode: validateCode }
+    },
+    {
+      id: stableUuid(`${name}:google`),
+      name: googleName,
+      type,
+      typeVersion,
+      position: [800, 300],
+      parameters,
+      credentials,
+      retryOnFail: true,
+      maxTries: 3,
+      waitBetweenTries: 2000
+    },
+    {
+      id: stableUuid(`${name}:sanitize`),
+      name: sanitizeName,
+      type: "n8n-nodes-base.code",
+      typeVersion: 2,
+      position: [1100, 300],
+      parameters: { mode: "runOnceForEachItem", language: "javaScript", jsCode: sanitizeCode }
+    }
+  ];
+
+  return {
+    id: stableUuid(`${name}:workflow`),
+    name,
+    nodes,
+    connections: buildConnections(nodes.map((node) => node.name)),
+    settings: { executionOrder: "v1", timezone: "America/Sao_Paulo" },
     pinData: {},
     tags: [],
     active: false,

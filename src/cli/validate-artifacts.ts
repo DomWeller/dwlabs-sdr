@@ -45,6 +45,7 @@ assertJsonDirectory("workflows/public-tools");
 assertJsonDirectory("workflows/subworkflows");
 assertJsonDirectory("workflows/schedulers");
 assertJsonDirectory("workflows/internal");
+assertJsonDirectory("workflows/adapters");
 
 const envExample = readFileSync(path.join(rootDir, ".env.example"), "utf8");
 if (!envExample.includes("__PLACEHOLDER_ONLY__")) {

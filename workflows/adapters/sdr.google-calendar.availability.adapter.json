@@ -1,0 +1,130 @@
+{
+  "id": "9f3e5acb-37ca-6bb2-a897-d978e262f4a7",
+  "name": "sdr.google-calendar.availability.adapter",
+  "nodes": [
+    {
+      "id": "b82109eb-e893-f10b-3321-69dc3ff8098b",
+      "name": "Execute Adapter",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": []
+        }
+      }
+    },
+    {
+      "id": "c70c5476-9b22-7471-a0bd-b3c33f35e50d",
+      "name": "Validate Adapter Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const input = $json ?? {};\nconst required = [\"calendar_id\",\"start_at\",\"end_at\"];\nconst missing = required.filter((field) => input[field] === undefined || input[field] === null || input[field] === '');\nif (missing.length) throw new Error(`ADAPTER_INPUT_INVALID:${missing.join(',')}`);\nif (input.start_at && input.end_at && new Date(input.end_at) <= new Date(input.start_at)) throw new Error('ADAPTER_WINDOW_INVALID');\nreturn [{ json: input }];"
+      }
+    },
+    {
+      "id": "448499f6-3954-7973-5a9c-b37abb4c6eb0",
+      "name": "Google Operation",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "resource": "calendar",
+        "operation": "availability",
+        "calendar": {
+          "mode": "id",
+          "value": "={{ $json.calendar_id }}"
+        },
+        "timeMin": "={{ $json.start_at }}",
+        "timeMax": "={{ $json.end_at }}",
+        "options": {
+          "outputFormat": "bookedSlots",
+          "timezone": {
+            "mode": "id",
+            "value": "America/Sao_Paulo"
+          }
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "DWLABS_SDR_GOOGLE_CALENDAR_ID",
+          "name": "DWLABS_SDR_GOOGLE_CALENDAR"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "3a54b3c4-fd81-6b9e-6b50-d347574a5694",
+      "name": "Sanitize Adapter Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const busy = Array.isArray($json.busy) ? $json.busy : (Array.isArray($json) ? $json : []); return [{ json: { ok: true, timezone: 'America/Sao_Paulo', busy_slots: busy.slice(0, 200) } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Adapter": {
+      "main": [
+        [
+          {
+            "node": "Validate Adapter Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Adapter Input": {
+      "main": [
+        [
+          {
+            "node": "Google Operation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Operation": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Adapter Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "tags": [],
+  "active": false,
+  "versionId": "58b86ee5-0cfa-a667-6982-7ef35031fb1b"
+}

@@ -1,0 +1,139 @@
+{
+  "id": "bb379c98-a58c-4f59-c28d-3fcba1d2d7aa",
+  "name": "sdr.google-calendar.create.adapter",
+  "nodes": [
+    {
+      "id": "4ea51bac-87fe-5aaa-ef88-cb8835188c04",
+      "name": "Execute Adapter",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": []
+        }
+      }
+    },
+    {
+      "id": "9ae769c0-6f04-5449-0dcf-911f7db7c3bc",
+      "name": "Validate Adapter Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const input = $json ?? {};\nconst required = [\"calendar_id\",\"start_at\",\"end_at\",\"authorized\"];\nconst missing = required.filter((field) => input[field] === undefined || input[field] === null || input[field] === '');\nif (missing.length) throw new Error(`ADAPTER_INPUT_INVALID:${missing.join(',')}`);\nif (input.authorized !== true) throw new Error('ADAPTER_AUTH_REQUIRED');\nif (input.start_at && input.end_at && new Date(input.end_at) <= new Date(input.start_at)) throw new Error('ADAPTER_WINDOW_INVALID');\nreturn [{ json: input }];"
+      }
+    },
+    {
+      "id": "a0b61944-f456-2963-84ba-d420d50982f8",
+      "name": "Google Operation",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendar": {
+          "mode": "id",
+          "value": "={{ $json.calendar_id }}"
+        },
+        "start": "={{ $json.start_at }}",
+        "end": "={{ $json.end_at }}",
+        "useDefaultReminders": true,
+        "additionalFields": {
+          "attendees": "={{ $json.attendee_email ? [$json.attendee_email] : [] }}",
+          "conferenceDataUi": {
+            "conferenceDataValues": {
+              "conferenceSolution": "hangoutsMeet"
+            }
+          },
+          "description": "={{ $json.description || 'Reuniao comercial agendada pelo atendimento oficial DWLabs.' }}",
+          "guestsCanInviteOthers": false,
+          "guestsCanModify": false,
+          "sendUpdates": "all",
+          "showMeAs": "opaque",
+          "summary": "={{ $json.summary || 'Reuniao comercial DWLabs' }}",
+          "visibility": "private"
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "DWLABS_SDR_GOOGLE_CALENDAR_ID",
+          "name": "DWLABS_SDR_GOOGLE_CALENDAR"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "f25a716c-3c68-8129-e24d-4b293fe580d9",
+      "name": "Sanitize Adapter Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, job_id: request.job_id || null, meeting_id: request.meeting_id || null, external_event_id: String($json.id || ''), meet_url: $json.hangoutLink || $json.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === 'video')?.uri || null, status: String($json.status || 'confirmed') } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Adapter": {
+      "main": [
+        [
+          {
+            "node": "Validate Adapter Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Adapter Input": {
+      "main": [
+        [
+          {
+            "node": "Google Operation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Operation": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Adapter Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "tags": [],
+  "active": false,
+  "versionId": "077b1b16-7ca9-3f1b-b87f-dcecbb782092"
+}

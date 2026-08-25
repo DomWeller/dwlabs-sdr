@@ -81,13 +81,15 @@ describe("artifact safeguards", () => {
     expect(result[0].json.request_hash).toBe(expected);
   });
 
-  it("removes placeholder subworkflow text and enables explicit disabled codes", () => {
+  it("removes placeholder subworkflow text and keeps Google dispatch OAuth-gated", () => {
     const subworkflow = readFileSync(path.join(rootDir, "workflows/subworkflows/sdr._validate_request.json"), "utf8");
     const scheduler = readFileSync(path.join(rootDir, "workflows/schedulers/sdr.sheets.sync.scheduler.json"), "utf8");
 
     expect(subworkflow).not.toContain("Executar regras compartilhadas aqui");
-    expect(scheduler).toContain("GOOGLE_SHEETS_DISABLED");
-    expect(scheduler).toContain("const enabled = false");
+    expect(scheduler).toContain("ops.claim_sheet_sync");
+    expect(scheduler).toContain("n8n-nodes-base.executeWorkflow");
+    expect(scheduler).toContain("ops.complete_sheet_sync");
+    expect(JSON.parse(scheduler).active).toBe(false);
     expect(scheduler).not.toContain("$env.");
   });
 
@@ -128,6 +130,75 @@ describe("artifact safeguards", () => {
     expect(importScript).toContain("n8n import:workflow");
     expect(importScript).toContain("active_workflow_json_files");
     expect(importScript).toContain("optional_scheduler_json_files");
+    expect(importScript).toContain("google_adapter_json_files");
+  });
+
+  it("ships five native Google adapters that remain unpublished without OAuth", () => {
+    const names = [
+      "sdr.google-calendar.availability.adapter",
+      "sdr.google-calendar.create.adapter",
+      "sdr.google-calendar.update.adapter",
+      "sdr.google-calendar.delete.adapter",
+      "sdr.google-sheets.pipeline.adapter"
+    ];
+    for (const name of names) {
+      const workflow = JSON.parse(
+        readFileSync(path.join(rootDir, "workflows/adapters", `${name}.json`), "utf8")
+      ) as {
+        active: boolean;
+        nodes: Array<{
+          type: string;
+          retryOnFail?: boolean;
+          maxTries?: number;
+          credentials?: Record<string, { id: string }>;
+        }>;
+      };
+      expect(workflow.active).toBe(false);
+      const googleNode = workflow.nodes.find((node) => node.type.includes("googleCalendar") || node.type.includes("googleSheets"));
+      expect(googleNode).toBeTruthy();
+      expect(googleNode?.retryOnFail).toBe(true);
+      expect(googleNode?.maxTries).toBe(3);
+      const credentialIds = Object.values(googleNode?.credentials ?? {}).map((credential) => credential.id);
+      expect(credentialIds.some((id) => id === "DWLABS_SDR_GOOGLE_CALENDAR_ID" || id === "DWLABS_SDR_GOOGLE_SHEETS_ID")).toBe(true);
+      expect(JSON.stringify(workflow)).not.toContain("$env.");
+    }
+  });
+
+  it("queues Google mutations transactionally and preserves manual OAuth settings", () => {
+    const migration = readFileSync(
+      path.join(rootDir, "database/migrations/007_google_integration_outbox.up.sql"),
+      "utf8"
+    );
+    const rollback = readFileSync(
+      path.join(rootDir, "database/migrations/007_google_integration_outbox.down.sql"),
+      "utf8"
+    );
+    const seed = readFileSync(path.join(rootDir, "database/seeds/001_seed_catalog.sql"), "utf8");
+
+    expect(migration).toContain("ops.calendar_integration_jobs");
+    expect(migration).toContain("FOR UPDATE OF candidate SKIP LOCKED");
+    expect(migration).toContain("ops.claim_calendar_integration");
+    expect(migration).toContain("ops.complete_calendar_integration");
+    expect(migration).toContain("ops.fail_calendar_integration");
+    expect(migration).toContain("ops.claim_sheet_sync");
+    expect(migration).toContain("attempts BETWEEN 0 AND 3");
+    expect(migration).not.toContain("normalized_phone");
+    expect(rollback).toContain("DROP TABLE IF EXISTS ops.calendar_integration_jobs");
+    expect(seed).toContain("EXCLUDED.metadata || ops.runtime_flags.metadata");
+    expect(seed).not.toContain("SET enabled = EXCLUDED.enabled");
+  });
+
+  it("ships inactive Calendar dispatchers with leases and deterministic adapters", () => {
+    for (const operation of ["create", "update", "delete"]) {
+      const scheduler = JSON.parse(
+        readFileSync(path.join(rootDir, "workflows/schedulers", `sdr.google-calendar.${operation}.scheduler.json`), "utf8")
+      ) as { active: boolean; nodes: Array<{ type: string; parameters: Record<string, unknown> }> };
+      expect(scheduler.active).toBe(false);
+      expect(JSON.stringify(scheduler)).toContain(`ops.claim_calendar_integration('n8n-calendar-${operation}', '${operation}')`);
+      expect(scheduler.nodes.some((node) => node.type === "n8n-nodes-base.executeWorkflow")).toBe(true);
+      expect(JSON.stringify(scheduler)).toContain("ops.complete_calendar_integration");
+      expect(JSON.stringify(scheduler)).not.toContain("$env.");
+    }
   });
 
   it("configures OpenClaw via CLI instead of writing compose override or config files", () => {

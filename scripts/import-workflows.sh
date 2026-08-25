@@ -66,6 +66,7 @@ copy_into_container "${tmp_dir}/workflows/public-tools" "${N8N_CONTAINER}" "${co
 copy_into_container "${tmp_dir}/workflows/subworkflows" "${N8N_CONTAINER}" "${container_tmp}/subworkflows"
 copy_into_container "${tmp_dir}/workflows/schedulers" "${N8N_CONTAINER}" "${container_tmp}/schedulers"
 copy_into_container "${tmp_dir}/workflows/internal" "${N8N_CONTAINER}" "${container_tmp}/internal"
+copy_into_container "${tmp_dir}/workflows/adapters" "${N8N_CONTAINER}" "${container_tmp}/adapters"
 
 log "Importando credenciais n8n com IDs fixos"
 docker_exec "${N8N_CONTAINER}" n8n import:credentials \
@@ -93,6 +94,11 @@ docker_exec "${N8N_CONTAINER}" n8n import:workflow \
 docker_exec "${N8N_CONTAINER}" n8n import:workflow \
   --separate \
   --input="${container_tmp}/internal" \
+  --projectId="${N8N_PROJECT_ID}" \
+  --activeState=false >/dev/null
+docker_exec "${N8N_CONTAINER}" n8n import:workflow \
+  --separate \
+  --input="${container_tmp}/adapters" \
   --projectId="${N8N_PROJECT_ID}" \
   --activeState=false >/dev/null
 
@@ -129,6 +135,10 @@ done < <(active_workflow_json_files)
 while IFS= read -r workflow_file; do
   unpublish_workflow_file "${workflow_file}"
 done < <(optional_scheduler_json_files)
+
+while IFS= read -r workflow_file; do
+  unpublish_workflow_file "${workflow_file}"
+done < <(google_adapter_json_files)
 
 docker_exec "${N8N_CONTAINER}" sh -lc "rm -rf '${container_tmp}'"
 

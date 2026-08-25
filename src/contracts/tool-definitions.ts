@@ -643,5 +643,8 @@ export const subworkflowNames = [
 export const schedulerNames = [
   "sdr.followup.scheduler",
   "sdr.sheets.sync.scheduler",
+  "sdr.google-calendar.create.scheduler",
+  "sdr.google-calendar.update.scheduler",
+  "sdr.google-calendar.delete.scheduler",
   "sdr.health.selfcheck"
 ] as const;

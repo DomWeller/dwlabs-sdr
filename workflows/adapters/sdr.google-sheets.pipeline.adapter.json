@@ -1,0 +1,241 @@
+{
+  "id": "7bd0fd9a-75c9-beff-f305-bf43d03b6080",
+  "name": "sdr.google-sheets.pipeline.adapter",
+  "nodes": [
+    {
+      "id": "3a204f88-97d4-f327-e662-d2c12ff9e672",
+      "name": "Execute Adapter",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": []
+        }
+      }
+    },
+    {
+      "id": "36e6d692-6945-06b9-0b55-1fffb6511964",
+      "name": "Validate Adapter Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const input = $json ?? {};\nconst required = [\"document_id\",\"sheet_name\",\"row\",\"authorized\"];\nconst missing = required.filter((field) => input[field] === undefined || input[field] === null || input[field] === '');\nif (missing.length) throw new Error(`ADAPTER_INPUT_INVALID:${missing.join(',')}`);\nif (input.authorized !== true) throw new Error('ADAPTER_AUTH_REQUIRED');\nif (input.start_at && input.end_at && new Date(input.end_at) <= new Date(input.start_at)) throw new Error('ADAPTER_WINDOW_INVALID');\nif (!input.row || typeof input.row !== 'object' || Array.isArray(input.row) || !input.row.lead_id) throw new Error('SHEETS_ROW_INVALID');\nreturn [{ json: { document_id: input.document_id, sheet_name: input.sheet_name, ...input.row } }];"
+      }
+    },
+    {
+      "id": "e0cb4479-d9a9-c319-05bb-96eca829db0b",
+      "name": "Google Operation",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $json.document_id }}"
+        },
+        "sheetName": {
+          "mode": "id",
+          "value": "={{ $json.sheet_name }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $json.lead_id }}",
+            "company": "={{ $json.company || '' }}",
+            "stage": "={{ $json.stage || '' }}",
+            "score": "={{ $json.score ?? 0 }}",
+            "temperature": "={{ $json.temperature || '' }}",
+            "segment": "={{ $json.segment || '' }}",
+            "city": "={{ $json.city || '' }}",
+            "services": "={{ $json.services || '' }}",
+            "owner": "={{ $json.owner || '' }}",
+            "updated_at": "={{ $json.updated_at || '' }}"
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "city",
+              "displayName": "city",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "services",
+              "displayName": "services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "owner",
+              "displayName": "owner",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DWLABS_SDR_GOOGLE_SHEETS_ID",
+          "name": "DWLABS_SDR_GOOGLE_SHEETS"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "08b6de27-3fc5-40e6-bdb5-b6311b516d58",
+      "name": "Sanitize Adapter Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, sync_job_id: request.sync_job_id || null, row_synced: true, lead_id: String(request.lead_id || $json.lead_id || '') } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Adapter": {
+      "main": [
+        [
+          {
+            "node": "Validate Adapter Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Adapter Input": {
+      "main": [
+        [
+          {
+            "node": "Google Operation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Operation": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Adapter Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "tags": [],
+  "active": false,
+  "versionId": "fb06a010-756e-59b1-b9c9-0edf6adf070a"
+}

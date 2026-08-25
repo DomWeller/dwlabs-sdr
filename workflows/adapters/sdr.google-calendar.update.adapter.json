@@ -1,0 +1,131 @@
+{
+  "id": "ad51f51f-fa73-6925-be72-430ea8542d01",
+  "name": "sdr.google-calendar.update.adapter",
+  "nodes": [
+    {
+      "id": "44e9781f-1884-3dc2-ddb2-ea1678753765",
+      "name": "Execute Adapter",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": []
+        }
+      }
+    },
+    {
+      "id": "6d9298e6-728c-7c82-26b6-c2aaccecd592",
+      "name": "Validate Adapter Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const input = $json ?? {};\nconst required = [\"calendar_id\",\"event_id\",\"start_at\",\"end_at\",\"authorized\"];\nconst missing = required.filter((field) => input[field] === undefined || input[field] === null || input[field] === '');\nif (missing.length) throw new Error(`ADAPTER_INPUT_INVALID:${missing.join(',')}`);\nif (input.authorized !== true) throw new Error('ADAPTER_AUTH_REQUIRED');\nif (input.start_at && input.end_at && new Date(input.end_at) <= new Date(input.start_at)) throw new Error('ADAPTER_WINDOW_INVALID');\nreturn [{ json: input }];"
+      }
+    },
+    {
+      "id": "bebaddea-3f6d-02f7-9258-bd4ad68a0c16",
+      "name": "Google Operation",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "resource": "event",
+        "operation": "update",
+        "calendar": {
+          "mode": "id",
+          "value": "={{ $json.calendar_id }}"
+        },
+        "eventId": "={{ $json.event_id }}",
+        "modifyTarget": "event",
+        "useDefaultReminders": true,
+        "updateFields": {
+          "start": "={{ $json.start_at }}",
+          "end": "={{ $json.end_at }}",
+          "description": "={{ $json.description || 'Reuniao comercial DWLabs reagendada.' }}",
+          "sendUpdates": "all",
+          "summary": "={{ $json.summary || 'Reuniao comercial DWLabs' }}"
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "DWLABS_SDR_GOOGLE_CALENDAR_ID",
+          "name": "DWLABS_SDR_GOOGLE_CALENDAR"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "5fe98e1c-f20d-59a9-f75b-d737d8c407a3",
+      "name": "Sanitize Adapter Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const request = $('Validate Adapter Input').item.json; return [{ json: { ok: true, job_id: request.job_id || null, meeting_id: request.meeting_id || null, external_event_id: String($json.id || ''), meet_url: $json.hangoutLink || null, status: String($json.status || 'confirmed') } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Adapter": {
+      "main": [
+        [
+          {
+            "node": "Validate Adapter Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Adapter Input": {
+      "main": [
+        [
+          {
+            "node": "Google Operation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Operation": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Adapter Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "tags": [],
+  "active": false,
+  "versionId": "852f9449-fb4a-e5a8-5bf8-e1a667340bd4"
+}

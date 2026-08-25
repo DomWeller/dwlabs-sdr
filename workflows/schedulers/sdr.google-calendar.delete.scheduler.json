@@ -1,14 +1,14 @@
 {
-  "id": "91359389-9d0b-8382-6f61-427275d599aa",
-  "name": "sdr.sheets.sync.scheduler",
+  "id": "a424347c-8d6f-d9f3-2567-0bd9616290d0",
+  "name": "sdr.google-calendar.delete.scheduler",
   "nodes": [
     {
-      "id": "7fecfe3a-5a73-69af-c886-fb811afc41b5",
+      "id": "c7e9f44d-f22d-75c1-0f5c-e426bb87e8d7",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        150,
+        180,
         300
       ],
       "parameters": {
@@ -16,24 +16,24 @@
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 10
+              "minutesInterval": 2
             }
           ]
         }
       }
     },
     {
-      "id": "6b6473e1-0141-3783-ca31-2295c825c170",
-      "name": "Claim Sheets Job",
+      "id": "a84bf980-8a26-d38f-8d73-251f2513fa41",
+      "name": "Claim Calendar Job",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        410,
+        450,
         300
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT * FROM ops.claim_sheet_sync('n8n-sheets-pipeline');",
+        "query": "SELECT * FROM ops.claim_calendar_integration('n8n-calendar-delete', 'delete');",
         "options": {}
       },
       "credentials": {
@@ -44,34 +44,19 @@
       }
     },
     {
-      "id": "6db2f408-965d-b01e-2818-51dc50fcb6d7",
-      "name": "Prepare Sheets Adapter Input",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        680,
-        300
-      ],
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "language": "javaScript",
-        "jsCode": "const row = typeof $json.row_payload === 'string' ? JSON.parse($json.row_payload) : $json.row_payload; return [{ json: { sync_job_id: String($json.sync_job_id), document_id: String($json.document_id), sheet_name: String($json.sheet_name), authorized: $json.authorized === true, row } }];"
-      }
-    },
-    {
-      "id": "a8424e23-e5e4-e060-c59e-745d64b36d6e",
-      "name": "Execute Google Sheets Adapter",
+      "id": "efff7c1e-d8e1-d11f-8f72-3eed36f7323d",
+      "name": "Execute Google Adapter",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        960,
+        730,
         300
       ],
       "parameters": {
         "source": "database",
         "workflowId": {
           "mode": "id",
-          "value": "7bd0fd9a-75c9-beff-f305-bf43d03b6080"
+          "value": "d8234444-2471-e432-acfc-08d148e78cb4"
         },
         "mode": "once",
         "options": {
@@ -80,19 +65,34 @@
       }
     },
     {
-      "id": "9ac2ddc2-4d78-7551-a266-2027bd79b519",
-      "name": "Complete Sheets Job",
+      "id": "ae9cc8b1-4997-62d1-33b0-dc99793f62ca",
+      "name": "Prepare Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1010,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "if (!$json.job_id) throw new Error('CALENDAR_JOB_ID_MISSING'); return [{ json: { job_id: String($json.job_id), result_base64: Buffer.from(JSON.stringify($json), 'utf8').toString('base64') } }];"
+      }
+    },
+    {
+      "id": "5bd2743c-bcb1-3ad2-7ff0-4237200591c4",
+      "name": "Complete Calendar Job",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1240,
+        1290,
         300
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT ops.complete_sheet_sync($1::uuid) AS completed;",
+        "query": "SELECT ops.complete_calendar_integration($1::uuid, convert_from(decode($2, 'base64'), 'UTF8')::jsonb) AS completed;",
         "options": {
-          "queryReplacement": "={{[$json.sync_job_id]}}"
+          "queryReplacement": "={{[$json.job_id, $json.result_base64]}}"
         }
       },
       "credentials": {
@@ -108,40 +108,40 @@
       "main": [
         [
           {
-            "node": "Claim Sheets Job",
+            "node": "Claim Calendar Job",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Claim Sheets Job": {
+    "Claim Calendar Job": {
       "main": [
         [
           {
-            "node": "Prepare Sheets Adapter Input",
+            "node": "Execute Google Adapter",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepare Sheets Adapter Input": {
+    "Execute Google Adapter": {
       "main": [
         [
           {
-            "node": "Execute Google Sheets Adapter",
+            "node": "Prepare Completion",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Execute Google Sheets Adapter": {
+    "Prepare Completion": {
       "main": [
         [
           {
-            "node": "Complete Sheets Job",
+            "node": "Complete Calendar Job",
             "type": "main",
             "index": 0
           }
@@ -156,5 +156,5 @@
   "pinData": {},
   "tags": [],
   "active": false,
-  "versionId": "99f3b995-9719-40da-e1a8-5d99dfbce639"
+  "versionId": "9af12b0f-ea80-7faf-7115-92d5b0aa4871"
 }

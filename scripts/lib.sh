@@ -366,7 +366,10 @@ active_workflow_json_files() {
 }
 
 optional_scheduler_json_files() {
-  printf '%s\n' \
-    "${ROOT_DIR}/workflows/schedulers/sdr.followup.scheduler.json" \
-    "${ROOT_DIR}/workflows/schedulers/sdr.sheets.sync.scheduler.json"
+  find "${ROOT_DIR}/workflows/schedulers" -type f -name '*.json' \
+    ! -name 'sdr.health.selfcheck.json' | sort
+}
+
+google_adapter_json_files() {
+  find "${ROOT_DIR}/workflows/adapters" -type f -name '*.json' | sort
 }
