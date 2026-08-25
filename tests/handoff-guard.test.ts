@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import plugin, { hasActiveHandoff, leadFromResponse, normalizeWhatsAppSenderId } from "../plugins/dwlabs-sdr-tools/src/index.js";
+import plugin, {
+  hasActiveHandoff,
+  isCommercialAgentContext,
+  leadFromResponse,
+  normalizeWhatsAppSenderId
+} from "../plugins/dwlabs-sdr-tools/src/index.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -8,6 +13,12 @@ describe("human handoff guard", () => {
     expect(normalizeWhatsAppSenderId("5511999999999@s.whatsapp.net")).toBe("5511999999999");
     expect(normalizeWhatsAppSenderId("5511999999999:12@s.whatsapp.net")).toBe("5511999999999");
     expect(normalizeWhatsAppSenderId("invalid")).toBeNull();
+  });
+
+  it("recognizes the commercial agent from the explicit id or canonical session key", () => {
+    expect(isCommercialAgentContext({ agentId: "comercial" })).toBe(true);
+    expect(isCommercialAgentContext({}, "agent:comercial:test-session")).toBe(true);
+    expect(isCommercialAgentContext({ agentId: "main" }, "agent:main:test-session")).toBe(false);
   });
 
   it("claims only leads with an active handoff", () => {
@@ -31,6 +42,7 @@ describe("human handoff guard", () => {
     let modelCallEnded: ((event: Record<string, unknown>, context: Record<string, unknown>) => Promise<unknown>) | undefined;
     const api = {
       pluginConfig: { baseUrl: "https://n8n.invalid/webhook", bearerToken: "test-token-".repeat(6) },
+      logger: { info: vi.fn() },
       registerTool(tool: unknown) { tools.push(tool); },
       on(name: string, handler: typeof inboundClaim) {
         if (name === "inbound_claim") inboundClaim = handler;

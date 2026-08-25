@@ -415,6 +415,16 @@ function senderCacheKey(senderId: string): string {
   return createHash("sha256").update(senderId).digest("hex");
 }
 
+export function isCommercialAgentContext(
+  context: { agentId?: string; sessionKey?: string },
+  eventSessionKey?: string
+): boolean {
+  if (context.agentId === "comercial") return true;
+  return [eventSessionKey, context.sessionKey].some(
+    (sessionKey) => typeof sessionKey === "string" && sessionKey.startsWith("agent:comercial:")
+  );
+}
+
 export function normalizeWhatsAppSenderId(senderId: string): string | null {
   const digits = senderId.split("@")[0].split(":")[0].replace(/\D+/g, "");
   return digits.length >= 10 && digits.length <= 15 ? digits : null;
@@ -516,6 +526,7 @@ const plugin = definePluginEntry({
   configSchema: toolPlugin.configSchema,
   register(api) {
     toolPlugin.register(api);
+    api.logger?.info("DWLabs SDR: 22 tools e 3 hooks de seguranca/observabilidade registrados.");
     const config = api.pluginConfig as PluginConfig;
     api.on(
       "inbound_claim",
@@ -547,7 +558,7 @@ const plugin = definePluginEntry({
     api.on(
       "model_call_ended",
       async (event, context) => {
-        if (context.agentId !== "comercial") return;
+        if (!isCommercialAgentContext(context, event.sessionKey)) return;
         const allowedChannels = new Set(["whatsapp", "instagram", "site", "test"]);
         const channel = allowedChannels.has(String(context.messageProvider)) ? String(context.messageProvider) : "internal";
         const requestId = randomUUID();
