@@ -267,7 +267,20 @@ export const toolDefinitions: ToolDefinition[] = [
         stage: { type: "string" },
         score: { type: "integer" },
         temperature_band: { type: "string" },
-        needs: stringArray("Necessidades resumidas")
+        needs: stringArray("Necessidades resumidas"),
+        handoff: {
+          anyOf: [
+            strictObject(
+              {
+                handoff_id: { type: "string" },
+                status: { type: "string", enum: ["open", "acknowledged"] },
+                priority: { type: "string" }
+              },
+              ["handoff_id", "status", "priority"]
+            ),
+            { type: "null" }
+          ]
+        }
       })
     })
   },
@@ -563,8 +576,10 @@ export const toolDefinitions: ToolDefinition[] = [
     ),
     dataSchema: strictObject({
       handoff_id: { type: "string" },
+      status: { type: "string", enum: ["open", "acknowledged"] },
+      reused: { type: "boolean" },
       blocked_automation: { type: "boolean" }
-    }, ["handoff_id", "blocked_automation"])
+    }, ["handoff_id", "status", "reused", "blocked_automation"])
   },
   {
     toolName: "sincronizar_sheets",

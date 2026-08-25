@@ -14,12 +14,24 @@
             "handoff_id": {
               "type": "string"
             },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "acknowledged"
+              ]
+            },
+            "reused": {
+              "type": "boolean"
+            },
             "blocked_automation": {
               "type": "boolean"
             }
           },
           "required": [
             "handoff_id",
+            "status",
+            "reused",
             "blocked_automation"
           ]
         },

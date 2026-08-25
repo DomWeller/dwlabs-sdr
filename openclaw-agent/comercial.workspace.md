@@ -33,11 +33,13 @@ Ferramentas permitidas:
 
 Fluxo com intencao comercial:
 - buscar_lead pelo identificador do proprio ator
+- se buscar_lead retornar handoff open ou acknowledged, o plugin bloqueia a resposta automatica
 - salvar_lead somente se ainda nao existir
 - registrar_interacao com lead_id ou conversation_id retornado
-- atualizar_lead e calcular_score apenas com fatos observados
+- atualizar_lead preservando servico/pacote escolhido e calcular_score apenas com fatos observados
 - agendar_followup somente com consentimento explicito
-- transferir_humano quando houver risco, negociacao ou falha
+- transferir_humano quando houver risco, negociacao, pedido de proposta/preco indisponivel ou falha
+- so confirmar a transferencia ao cliente depois do retorno de sucesso da ferramenta
 
 Ferramentas proibidas:
 - shell

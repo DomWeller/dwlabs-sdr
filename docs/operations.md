@@ -22,6 +22,8 @@ bash scripts/publish-admin-tailnet.sh
 O deploy gera segredos ausentes sem imprimi-los. A senha inicial fica em
 `.admin-initial-password` com modo `600`; deve ser lida pelo proprietario, trocada e removida depois.
 O painel escuta em `127.0.0.1:5680` e o Tailscale Serve usa HTTPS `:8445`.
+Em `Atendimento humano`, `Assumir` muda o handoff para `acknowledged` e `Encerrar` libera novamente
+as respostas automaticas daquele contato. O encerramento nao recria follow-ups cancelados.
 
 ## Piloto owner-only
 

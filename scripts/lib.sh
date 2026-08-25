@@ -259,7 +259,7 @@ apply_specialized_database_grants() {
 GRANT CONNECT ON DATABASE "${POSTGRES_DB}" TO "${POSTGRES_ADMIN_USER}", "${POSTGRES_DISPATCHER_USER}";
 GRANT USAGE ON SCHEMA core, rag, ops, audit TO "${POSTGRES_ADMIN_USER}";
 GRANT SELECT ON ALL TABLES IN SCHEMA core, rag, ops, audit TO "${POSTGRES_ADMIN_USER}";
-GRANT UPDATE ON core.services, ops.runtime_flags TO "${POSTGRES_ADMIN_USER}";
+GRANT UPDATE ON core.services, core.handoffs, ops.runtime_flags TO "${POSTGRES_ADMIN_USER}";
 GRANT INSERT ON audit.admin_change_log TO "${POSTGRES_ADMIN_USER}";
 GRANT USAGE ON SCHEMA ops TO "${POSTGRES_DISPATCHER_USER}";
 REVOKE ALL ON ALL TABLES IN SCHEMA core, rag, ops, audit FROM "${POSTGRES_DISPATCHER_USER}";

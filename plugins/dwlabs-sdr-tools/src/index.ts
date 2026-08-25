@@ -88,6 +88,8 @@ type ToolSpec = {
 const rateWindows = new Map<string, { startedAt: number; count: number }>();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 12;
+const activeHandoffCache = new Map<string, number>();
+const ACTIVE_HANDOFF_FAILURE_GRACE_MS = 15 * 60_000;
 
 function enforceRateLimit(relativePath: string, params: Record<string, unknown>): void {
   const actor = (params.actor ?? {}) as Record<string, unknown>;
@@ -395,6 +397,60 @@ async function callWorkflow(
   return response.json();
 }
 
+function senderCacheKey(senderId: string): string {
+  return createHash("sha256").update(senderId).digest("hex");
+}
+
+export function normalizeWhatsAppSenderId(senderId: string): string | null {
+  const digits = senderId.split("@")[0].split(":")[0].replace(/\D+/g, "");
+  return digits.length >= 10 && digits.length <= 15 ? digits : null;
+}
+
+export function hasActiveHandoff(response: unknown): boolean {
+  if (!response || typeof response !== "object") return false;
+  const root = response as Record<string, unknown>;
+  if (root.ok !== true || !root.data || typeof root.data !== "object") return false;
+  const lead = (root.data as Record<string, unknown>).lead;
+  if (!lead || typeof lead !== "object") return false;
+  const handoff = (lead as Record<string, unknown>).handoff;
+  if (!handoff || typeof handoff !== "object") return false;
+  return ["open", "acknowledged"].includes(String((handoff as Record<string, unknown>).status));
+}
+
+async function shouldClaimForHumanHandoff(
+  senderId: string,
+  messageId: string | undefined,
+  config: PluginConfig
+): Promise<boolean> {
+  const phone = normalizeWhatsAppSenderId(senderId);
+  if (!phone) return false;
+  const cacheKey = senderCacheKey(phone);
+  const requestId = randomUUID();
+  const envelope = {
+    request_id: requestId,
+    idempotency_key: `handoff-guard:${createHash("sha256").update(`${messageId ?? requestId}:${phone}`).digest("hex")}`,
+    channel: "whatsapp",
+    actor: { phone },
+    context: { message_id: messageId ?? requestId },
+    payload: { phone }
+  };
+
+  try {
+    const response = await callWorkflow(
+      "dwlabs-sdr/buscar-lead",
+      envelope,
+      { ...config, timeoutMs: Math.min(config.timeoutMs ?? 8000, 5000) }
+    );
+    const active = hasActiveHandoff(response);
+    if (active) activeHandoffCache.set(cacheKey, Date.now());
+    else activeHandoffCache.delete(cacheKey);
+    return active;
+  } catch {
+    const lastActiveAt = activeHandoffCache.get(cacheKey);
+    return typeof lastActiveAt === "number" && Date.now() - lastActiveAt <= ACTIVE_HANDOFF_FAILURE_GRACE_MS;
+  }
+}
+
 const configSchema = Type.Object(
   {
     baseUrl: Type.Optional(Type.String()),
@@ -405,7 +461,7 @@ const configSchema = Type.Object(
   { additionalProperties: false }
 );
 
-export default defineToolPlugin({
+const plugin = defineToolPlugin({
   id: "dwlabs-sdr-tools",
   name: "DWLabs SDR Tools",
   description: "Ferramentas tipadas e allowlisted do SDR comercial da DWLabs.",
@@ -420,3 +476,21 @@ export default defineToolPlugin({
       })
     )
 });
+
+const registerTools = plugin.register;
+plugin.register = (api) => {
+  registerTools(api);
+  const config = api.pluginConfig as PluginConfig;
+  api.on(
+    "inbound_claim",
+    async (_event, context) => {
+      if (context.agentId !== "comercial" || context.channelId !== "whatsapp" || !context.senderId) return;
+      if (await shouldClaimForHumanHandoff(context.senderId, context.messageId, config)) {
+        return { handled: true };
+      }
+    },
+    { priority: 100, timeoutMs: 6000 }
+  );
+};
+
+export default plugin;

@@ -342,6 +342,30 @@ const handoff = expectSuccess(
   "transferir_humano"
 );
 assert.equal(handoff.blocked_automation, true);
+assert.equal(handoff.status, "open");
+assert.equal(handoff.reused, false);
+
+const repeatedHandoff = expectSuccess(
+  await request(
+    "transferir_humano",
+    makeEnvelope(
+      "transferir_humano",
+      { lead_id: leadA.lead_id, reason: "segunda solicitacao", priority: "alta" },
+      actorA,
+      contextA
+    )
+  ),
+  "transferir_humano ativo"
+);
+assert.equal(repeatedHandoff.handoff_id, handoff.handoff_id, "handoff ativo deveria ser reutilizado");
+assert.equal(repeatedHandoff.reused, true);
+
+const blockedLead = expectSuccess(
+  await request("buscar_lead", makeEnvelope("buscar_lead", { phone: phoneA }, actorA, contextA)),
+  "buscar_lead com handoff"
+);
+assert.equal(blockedLead.lead.handoff.handoff_id, handoff.handoff_id);
+assert.equal(blockedLead.lead.handoff.status, "open");
 
 assert.deepEqual(
   [...exercisedTools].sort(),
@@ -357,6 +381,7 @@ process.stdout.write(
     idempotency_replay: true,
     idempotency_collision_blocked: true,
     same_external_event_across_tools: true,
+    active_handoff_reused: true,
     cross_contact_reads_blocked: 2,
     external_integrations_remained_disabled: 7
   }) + "\n"

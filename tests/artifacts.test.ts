@@ -202,10 +202,32 @@ describe("artifact safeguards", () => {
     expect(admin).toContain("SameSite=Strict");
     expect(admin).toContain("CSRF");
     expect(admin).toContain("timingSafeEqual");
+    expect(admin).toContain('action="/handoffs/acknowledge"');
+    expect(admin).toContain('action="/handoffs/close"');
+    expect(admin).toContain("resolution_note_provided");
+    expect(admin).toContain("handoff_id=$1");
     expect(compose).toContain('127.0.0.1:5680:3000');
     expect(compose).toContain("no-new-privileges:true");
     expect(compose).toContain("POSTGRES_ADMIN_USER");
     expect(compose).toContain("POSTGRES_DISPATCHER_USER");
+  });
+
+  it("enforces one active human handoff and blocks pending automation", () => {
+    const migration = readFileSync(
+      path.join(rootDir, "database/migrations/005_human_handoff_queue.up.sql"),
+      "utf8"
+    );
+    const plugin = readFileSync(path.join(rootDir, "plugins/dwlabs-sdr-tools/src/index.ts"), "utf8");
+    const lib = readFileSync(path.join(rootDir, "scripts/lib.sh"), "utf8");
+    expect(migration).toContain("uq_handoffs_one_active_per_lead");
+    expect(migration).toContain("status IN ('open', 'acknowledged')");
+    expect(migration).toContain("UPDATE ops.delivery_outbox");
+    expect(migration).toContain("'queued', 'retry', 'claimed'");
+    expect(migration).toContain("'handoff', (");
+    expect(plugin).toContain('api.on(\n    "inbound_claim"');
+    expect(plugin).toContain("return { handled: true }");
+    expect(plugin).toContain("ACTIVE_HANDOFF_FAILURE_GRACE_MS");
+    expect(lib).toContain("core.services, core.handoffs, ops.runtime_flags");
   });
 
   it("requires an explicit owner-only confirmation before changing WhatsApp routing", () => {
